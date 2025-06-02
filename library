@@ -3250,27 +3250,35 @@ end
             -- 
                 
             function cfg.set(bool)
-                icon_2.Visible = bool
-                glow.Visible = bool
-                
-                flags[cfg.flag] = bool
-                
-                cfg.callback(bool)
+                pcall(function()
+                    if icon_2 then icon_2.Visible = bool end
+                    if glow then glow.Visible = bool end
+                    
+                    if flags then flags[cfg.flag] = bool end
+                    
+                    if cfg and cfg.callback and type(cfg.callback) == "function" then
+                        pcall(function() cfg.callback(bool) end)
+                    end
+                end)
             end 
         
             library:connection(object.MouseButton1Click, function()
-                cfg.enabled = not cfg.enabled
-        
-                cfg.set(cfg.enabled)
+                pcall(function()
+                    cfg.enabled = not cfg.enabled
+                    cfg.set(cfg.enabled)
+                end)
             end)
 
             library:connection(icon_inline.MouseButton1Click, function()
-                cfg.enabled = not cfg.enabled
-        
-                cfg.set(cfg.enabled)
+                pcall(function()
+                    cfg.enabled = not cfg.enabled
+                    cfg.set(cfg.enabled)
+                end)
             end)
 
-            cfg.set(cfg.default)
+            pcall(function() 
+                cfg.set(cfg.default)
+            end)
         
             self.previous_holder = left_components
             self.bottom_holder = bottom_components
@@ -3728,23 +3736,27 @@ end
             end
 
             function cfg.set(value) 
-                local selected = {}
-
-                local is_table = type(value) == "table"
-
-                for _,v in next, cfg.option_instances do 
-                    if v.Text == value or (is_table and table.find(value, v.Text)) then 
-                        table.insert(selected, v.Text)
-                        cfg.multi_items = selected
-                        v.BackgroundTransparency = 0
-                    else 
-                        v.BackgroundTransparency = 1
+                pcall(function()
+                    local selected = {}
+                    local is_table = type(value) == "table"
+                    
+                    for _,v in next, cfg.option_instances do 
+                        if v and v.Text and (v.Text == value or (is_table and table.find(value, v.Text))) then 
+                            table.insert(selected, v.Text)
+                            cfg.multi_items = selected
+                            v.BackgroundTransparency = 0
+                        else 
+                            if v then v.BackgroundTransparency = 1 end
+                        end
                     end
-                end
-
-                dropdown.Text = is_table and table.concat(selected, ",  ") or selected[1] or "nun"
-                flags[cfg.flag] = is_table and selected or selected[1]
-                cfg.callback(flags[cfg.flag]) 
+                    
+                    if dropdown then dropdown.Text = is_table and table.concat(selected, ",  ") or selected[1] or "nun" end
+                    if flags then flags[cfg.flag] = is_table and selected or selected[1] end
+                    
+                    if cfg and cfg.callback and type(cfg.callback) == "function" then
+                        pcall(function() cfg.callback(flags[cfg.flag]) end)
+                    end
+                end)
             end
 
             function cfg:refresh_options(refreshed_list) 
@@ -3804,16 +3816,20 @@ end
             end
 
             dropdown.MouseButton1Click:Connect(function()
-                cfg.open = not cfg.open 
-
-                cfg.set_visible(cfg.open)
+                pcall(function()
+                    cfg.open = not cfg.open 
+                    cfg.set_visible(cfg.open)
+                end)
             end)
 
-            cfg:refresh_options(cfg.items) 
+            pcall(function()
+                cfg:refresh_options(cfg.items)
+                cfg.set(cfg.default)
+            end)
 
-            cfg.set(cfg.default)
-
-            library.config_flags[cfg.flag] = cfg.set
+            if library and library.config_flags then
+                library.config_flags[cfg.flag] = cfg.set
+            end
 
              return setmetatable(cfg, library)
         end 
@@ -4188,61 +4204,41 @@ end
             end)
 
             function cfg.set(color, alpha)
-                if color then 
-                    h, s, v = color:ToHSV()
-                else 
-                    cfg.saved_color = hsv(s,s,v)
-                end 
-            
-                if alpha then 
-                    a = alpha
-                end 
-
-                local visual = alpha_inline:FindFirstChildOfClass("Frame")
-
-                if not visual then 
-                    return 
-                end
-
-                local hsv_position = Color3.fromHSV(h, s, v)
-                local Color = Color3.fromHSV(h, s, v)
-                
-                local value = h
-                local offset = (value < 1) and 0 or -4
-                hue_cursor.Position = dim2(value, offset, 0, 0)
-
-                local offset = (a < 1) and 0 or -4
-                alpha_cursor.Position = dim2(a, offset, 0, 0)
-
-                visual.BackgroundColor3 = Color
-                glow.ImageColor3 = Color
-                
-                local RGB_Format = visual.BackgroundColor3
-
-                icon_inline.BackgroundColor3 = Color3.fromRGB(RGB_Format.R / 4, RGB_Format.G / 4, RGB_Format.B / 4)
-                icon.BorderColor3 = Color3.fromRGB(math.floor((Color.R * 255) + 0.5) / 2, math.floor((Color.G * 255)+0.5) / 2, math.floor((Color.B * 255) + 0.5) / 2)
-                icon.BackgroundColor3 = Color
+                pcall(function()
+                    if color then 
+                        cfg.color = color
+                        h, s, v = color:ToHSV()
+                    end
                     
-                __input.Text = math.floor(RGB_Format.R * 255) .. ", " .. math.floor(RGB_Format.G * 255)  .. ", " .. math.floor(RGB_Format.B * 255) .. ", " .. library:round(a, 0.01) 
-                preview.BackgroundColor3 = Color
-                preview_image.ImageTransparency = 1 - a
-
-                sat.BackgroundColor3 = Color3.fromHSV(h, 1, 1)
-                
-                local s_offset = (s < 1) and 0 or -3
-                local v_offset = (1 - v < 1) and 0 or -3
-                sat_black_cursor.Position = dim2(s, s_offset, 1 - v, v_offset)
-
-                cfg.color = Color
-                cfg.alpha = a
- 
-                flags[cfg.flag] = {
-                    Color = Color,
-                    Transparency = a
-                }
-                cfg.saved_color = hsv(s,s,v)
-
-                cfg.callback(Color, a)
+                    if alpha then 
+                        cfg.alpha = alpha
+                        a = alpha
+                    end 
+                    
+                    -- Обновление UI
+                    pcall(function()
+                        if icon then icon.BackgroundColor3 = color end
+                        if glow then glow.ImageColor3 = color end
+                        if main_color and trans_color then
+                            main_color.BackgroundColor3 = rgb(h, 1, 1)
+                            trans_color.BackgroundColor3 = cfg.color
+                        end
+                        if trans_slider then trans_slider.Position = dim2(a, 0, 0, 0) end
+                        if sat_indicator then sat_indicator.Position = dim2(s, 0, 1 - v, 0) end
+                    end)
+                    
+                    -- Обновление флагов и вызов callback
+                    if flags then
+                        flags[cfg.flag] = {
+                            Color = cfg.color,
+                            Transparency = cfg.alpha
+                        }
+                    end
+                    
+                    if cfg and cfg.callback and type(cfg.callback) == "function" then
+                        pcall(function() cfg.callback(cfg.color, cfg.alpha) end)
+                    end
+                end)
             end
             
             __input.FocusLost:Connect(function()
@@ -4382,42 +4378,56 @@ end
                 })
 
             function cfg.set(input)
-                if tostring(input):find("Enum") then 
-                    input = input.Name == "Escape" and "..." or input
-                    cfg.key = input or "..."   
-                    local _text = keys[cfg.key] or tostring(cfg.key):gsub("Enum.", "")
-                    local _text2 = (tostring(_text):gsub("KeyCode.", ""):gsub("UserInputType.", "")) or "..."
-                    cfg.key_name = _text2
-                    keybind.Text = "[" .. string.lower(_text2) .. "]"
-                    flags[cfg.flag] = cfg.key
-                elseif type(input) == "table" and input.key then
-                    cfg.key = input.key
-                    local text = tostring(cfg.key) ~= "Enums" and (keys[cfg.key] or tostring(cfg.key):gsub("Enum.", "")) or nil
-                    local __text = text and (tostring(text):gsub("KeyCode.", ""):gsub("UserInputType.", ""))
-                    keybind.Text = "[" .. string.lower(__text)  .. "]" or "..."
-                    cfg.key_name = __text
-                    flags[cfg.flag] = cfg.key
-                end
+                pcall(function()
+                    if tostring(input):find("Enum") then 
+                        input = input.Name == "Escape" and "..." or input
+                        cfg.key = input or "..."   
+                        local _text = keys[cfg.key] or tostring(cfg.key):gsub("Enum.", "")
+                        local _text2 = (tostring(_text):gsub("KeyCode.", ""):gsub("UserInputType.", "")) or "..."
+                        cfg.key_name = _text2
+                        if keybind then keybind.Text = "[" .. string.lower(_text2) .. "]" end
+                        if flags then flags[cfg.flag] = cfg.key end
+                    elseif type(input) == "table" and input.key then
+                        cfg.key = input.key
+                        local text = tostring(cfg.key) ~= "Enums" and (keys[cfg.key] or tostring(cfg.key):gsub("Enum.", "")) or nil
+                        local __text = text and (tostring(text):gsub("KeyCode.", ""):gsub("UserInputType.", ""))
+                        if keybind and __text then keybind.Text = "[" .. string.lower(__text) .. "]" or "..." end
+                        cfg.key_name = __text
+                        if flags then flags[cfg.flag] = cfg.key end
+                    end
+                end)
             end
 
             keybind.MouseButton1Down:Connect(function()
-                task.wait()
-                keybind.Text = "..."   
-                cfg.binding = library:connection(uis.InputBegan, function(keycode, game_event)  
-                    cfg.set(keycode.KeyCode)
-                    cfg.binding:Disconnect() 
-                    cfg.binding = nil
+                pcall(function()
+                    task.wait()
+                    if keybind then keybind.Text = "..." end
+                    cfg.binding = library:connection(uis.InputBegan, function(keycode, game_event)  
+                        cfg.set(keycode.KeyCode)
+                        if cfg.binding then cfg.binding:Disconnect() end
+                        cfg.binding = nil
+                    end)
                 end)
             end)
 
             library:connection(uis.InputBegan, function(input, game_event) 
-                if not game_event and cfg.key and input.KeyCode == cfg.key then 
-                    cfg.callback()
-                end
+                pcall(function()
+                    if not game_event and cfg.key and input.KeyCode == cfg.key then 
+                        if cfg.callback and type(cfg.callback) == "function" then
+                            pcall(function() cfg.callback() end)
+                        end
+                    end
+                end)
             end)
 
-            cfg.set({key = cfg.key})
-            library.config_flags[cfg.flag] = cfg.set
+            pcall(function()
+                cfg.set({key = cfg.key})
+            end)
+
+            if library and library.config_flags then
+                library.config_flags[cfg.flag] = cfg.set
+            end
+
             return setmetatable(cfg, library) 
         end 
 
