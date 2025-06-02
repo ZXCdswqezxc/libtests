@@ -2227,9 +2227,13 @@ end
             end   
 
             function cfg.set_menu_visibility(bool, pl)
-                WINDOW_PATH.Visible = bool
+                if WINDOW_PATH then
+                    WINDOW_PATH.Visible = bool
+                end
 
-                playerlist.Visible = flags["player_list"] and bool or false 
+                if playerlist then
+                    playerlist.Visible = (flags and flags["player_list"] or false) and bool or false
+                end
             end 
 
             return setmetatable(cfg, library)
@@ -4495,13 +4499,17 @@ end
             
             textbox:GetPropertyChangedSignal("Text"):Connect(function()
                 flags[cfg.flag] = textbox.text
-                cfg.callback(textbox.text)
+                if cfg and cfg.callback then
+                    cfg.callback(textbox.text)
+                end
             end)
 
             function cfg.set(text) 
                 flags[cfg.flag] = text
                 textbox.Text = text
-                cfg.callback(text)
+                if cfg and cfg.callback then
+                    cfg.callback(text)
+                end
             end 
 
             if cfg.default then 
