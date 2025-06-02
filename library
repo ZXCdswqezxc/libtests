@@ -3128,6 +3128,7 @@ end
         end 
 
         function library:toggle(properties) 
+            properties.callback = properties.callback or function() end
             local cfg = {
                 enabled = properties.enabled or nil,
                 name = properties.name or "Toggle",
@@ -3277,6 +3278,7 @@ end
         end 
         
         function library:slider(properties)
+            properties.callback = properties.callback or function() end
             local cfg = {
                 name = properties.name or nil,
                 suffix = properties.suffix or "",
@@ -3514,6 +3516,7 @@ end
         end 
 
         function library:dropdown(properties) 
+            properties.callback = properties.callback or function() end
             local cfg = {
                 name = properties.name or nil,
                 flag = properties.flag or tostring(math.random(1,9999999)),
@@ -3812,6 +3815,7 @@ end
         end 
 
         function library:colorpicker(properties)            
+            properties.callback = properties.callback or function() end
             local cfg = {
                 name = properties.name or nil, 
                 flag = properties.flag or tostring(2^789),
@@ -4297,6 +4301,7 @@ end
         end     
 
         function library:keybind(properties)
+            properties.callback = properties.callback or function() end
             local cfg = {
                 flag = properties.flag or tostring(2^math.random(1,30)*3),
                 keybind_name = properties.keybind_name or nil, 
@@ -4413,6 +4418,7 @@ end
         end 
 
         function library:button(properties)
+            properties.callback = properties.callback or function() end
             local cfg = {
                 callback = properties.callback or function() end, 
                 name = properties.text or properties.name or "Button",
@@ -4450,6 +4456,7 @@ end
         end 
 
         function library:textbox(properties)
+            properties.callback = properties.callback or function() end
             local cfg = {
                 placeholder = properties.placeholder or properties.placeholdertext or properties.holder or properties.holdertext or "type here...",
                 default = properties.default,
