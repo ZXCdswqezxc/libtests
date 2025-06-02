@@ -1338,7 +1338,7 @@ end
             
             function cfg.set_visible(bool) end
             function cfg.change_text(text) end
-            
+
             return cfg 
         end 
 
@@ -3267,9 +3267,9 @@ end
                     cfg.open = true
                     cfg.set_visible(true)
                 else
-                    cfg.open = false
+                    cfg.open = false 
                     cfg.set_visible(false)
-                end
+                end 
             end)
 
             function cfg.set(color, alpha)
