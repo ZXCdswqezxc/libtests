@@ -2838,7 +2838,13 @@ end
                     end
                 end
 
-                dropdown.Text = is_table and table.concat(selected, ",  ") or selected[1] or "nun"
+                -- Проверка длины текста для мультибокса и его обрезка при необходимости
+                local display_text = is_table and table.concat(selected, ",  ") or selected[1] or "nun"
+                if #display_text > 20 and is_table then
+                    display_text = display_text:sub(1, 17) .. "..."
+                end
+
+                dropdown.Text = display_text
                 flags[cfg.flag] = is_table and selected or selected[1]
                 cfg.callback(flags[cfg.flag]) 
             end
