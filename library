@@ -4460,12 +4460,14 @@ end
         end 
 
         function library:textbox(properties)
+            properties = properties or {}
             properties.callback = properties.callback or function() end
+            
             local cfg = {
                 placeholder = properties.placeholder or properties.placeholdertext or properties.holder or properties.holdertext or "type here...",
-                default = properties.default,
+                default = properties.default or "",
                 clear_on_focus = properties.clearonfocus or false,
-                flag = properties.flag or "SET ME NIGGA",
+                flag = properties.flag or ("TB_" .. tostring(math.random(1000000, 9999999))),
                 callback = properties.callback or function() end 
             }
 
@@ -4497,28 +4499,50 @@ end
                 BackgroundColor3 = Color3.fromRGB(38, 38, 38)
             })
             
-            textbox:GetPropertyChangedSignal("Text"):Connect(function()
-                flags[cfg.flag] = textbox.text
-                if cfg and cfg.callback then
-                    cfg.callback(textbox.text)
+            -- Безопасный вызов callback с проверкой на nil
+            local function safe_callback(text)
+                if flags then
+                    flags[cfg.flag] = text
                 end
+                
+                pcall(function()
+                    if cfg and cfg.callback then
+                        cfg.callback(text)
+                    end
+                end)
+            end
+            
+            textbox:GetPropertyChangedSignal("Text"):Connect(function()
+                safe_callback(textbox.text or textbox.Text or "")
             end)
 
             function cfg.set(text) 
-                flags[cfg.flag] = text
-                textbox.Text = text
-                if cfg and cfg.callback then
-                    cfg.callback(text)
+                if not text then text = "" end
+                
+                if flags then
+                    flags[cfg.flag] = text
                 end
+                
+                pcall(function()
+                    if textbox then
+                        textbox.Text = text
+                    end
+                end)
+                
+                safe_callback(text)
             end 
 
             if cfg.default then 
-                cfg.set(cfg.default) 
+                pcall(function()
+                    cfg.set(cfg.default)
+                end)
             end 
 
-            library.config_flags[cfg.flag] = cfg.set
+            if library.config_flags then
+                library.config_flags[cfg.flag] = cfg.set
+            end
 
-             return setmetatable(cfg, library)  
+            return setmetatable(cfg, library)  
         end 
 
         function library:panel(properties)
