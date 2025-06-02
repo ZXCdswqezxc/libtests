@@ -1,0 +1,212 @@
+-- Загрузка библиотеки
+local library = loadstring(game:HttpGet("https://raw.githubusercontent.com/ZXCdswqezxc/libtests/refs/heads/main/library"))()
+
+-- Создаём окно с 6 вкладками, весь HUD скрыт
+local win = library:window{
+    Name = "replace.gg",
+    watermarkvisible = false,
+    playerlistvisible = false,
+    keybindlistvisible = false
+}
+
+local tabs = {
+    Combat = win:tab{name = "Combat"},
+    Movement = win:tab{name = "Movement"},
+    Visuals = win:tab{name = "Visuals"},
+    Misc = win:tab{name = "Misc"},
+    Other = win:tab{name = "Other"},
+    Config = win:tab{name = "Config"}
+}
+
+-- ========== КАСТОМНАЯ ВАТЕРМАРКА ==========
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TextService = game:GetService("TextService")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+-- Создаём watermark GUI (по умолчанию скрыта)
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Parent = playerGui
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.Enabled = false -- будет включаться через toggle
+
+local watermark = Instance.new("Frame")
+watermark.Name = "watermark"
+watermark.Parent = ScreenGui
+watermark.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+watermark.BorderColor3 = Color3.fromRGB(20, 20, 20)
+watermark.BorderSizePixel = 0
+watermark.Position = UDim2.new(1, -130, 0, 10)
+watermark.Size = UDim2.new(0, 120, 0, 20)
+
+local stroke = Instance.new("UIStroke")
+stroke.Name = "stroke"
+stroke.Parent = watermark
+stroke.Color = Color3.fromRGB(255, 0, 0)
+stroke.Thickness = 2
+stroke.Transparency = 0.3
+
+local uiGradient = Instance.new("UIGradient")
+uiGradient.Name = "uiGradient"
+uiGradient.Parent = stroke
+uiGradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 0, 0)),
+    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 100, 100)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 0, 0))
+})
+uiGradient.Rotation = 45
+
+local WmText = Instance.new("TextLabel")
+WmText.Name = "WmText"
+WmText.Parent = watermark
+WmText.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+WmText.BackgroundTransparency = 1
+WmText.BorderColor3 = Color3.fromRGB(0, 0, 0)
+WmText.BorderSizePixel = 0
+WmText.Size = UDim2.new(1, 0, 1, 0)
+WmText.Font = Enum.Font.Sarpanch
+WmText.TextColor3 = Color3.fromRGB(255, 255, 255)
+WmText.TextSize = 16
+WmText.Text = ""
+
+local presets = {
+    TopLeft = UDim2.new(0, 10, 0, 10),
+    TopRight = UDim2.new(1, -130, 0, 10),
+    TopCenter = UDim2.new(0.5, -60, 0, 10)
+}
+local currentPreset = "TopRight"
+local function setWatermarkPreset(presetName)
+    if presets[presetName] then
+        watermark.Position = presets[presetName]
+        currentPreset = presetName
+    end
+end
+local function cyclePresets()
+    local presetOrder = {"TopLeft", "TopRight", "TopCenter"}
+    local currentIndex = table.find(presetOrder, currentPreset) or 1
+    local nextIndex = (currentIndex % #presetOrder) + 1
+    setWatermarkPreset(presetOrder[nextIndex])
+end
+local function scaleFrameToText(frame, textLabel)
+    local text = textLabel.Text
+    local font = textLabel.Font
+    local textSize = textLabel.TextSize
+    local textBounds = TextService:GetTextSize(text, textSize, font, Vector2.new(math.huge, math.huge))
+    frame.Size = UDim2.new(0, textBounds.X + 10, 0, textBounds.Y + 5)
+end
+local function makeDraggable(frame)
+    local dragging = false
+    local dragInput, dragStart, startPos
+    frame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            dragStart = input.Position
+            startPos = frame.Position
+            currentPreset = nil
+            local connection
+            connection = input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                    connection:Disconnect()
+                end
+            end)
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement and dragging then
+            local delta = input.Position - dragStart
+            frame.Position = UDim2.new(
+                startPos.X.Scale,
+                startPos.X.Offset + delta.X,
+                startPos.Y.Scale,
+                startPos.Y.Offset + delta.Y
+            )
+        end
+    end)
+end
+makeDraggable(watermark)
+UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
+    if not gameProcessedEvent and input.KeyCode == Enum.KeyCode.P then
+        cyclePresets()
+    end
+end)
+local lastFpsUpdate = 0
+local fps = 0
+local function calculateFps()
+    local currentTime = tick()
+    if currentTime - lastFpsUpdate >= 3 then
+        fps = math.floor(1 / RunService.RenderStepped:Wait())
+        lastFpsUpdate = currentTime
+    end
+end
+local function updateWatermark()
+    calculateFps()
+    local date = os.date("%Y-%m-%d %H:%M:%S")
+    local infoTypes = library.flags.watermark_info or {"FPS", "Date", "Name"}
+    local parts = {}
+    -- Строгий порядок: FPS | Date | Name
+    if table.find(infoTypes, "FPS") then table.insert(parts, string.format("FPS: %d", fps)) end
+    if table.find(infoTypes, "Date") then table.insert(parts, date) end
+    if table.find(infoTypes, "Name") then table.insert(parts, player.Name) end
+    local text = "replace.gg"
+    if #parts > 0 then
+        text = text .. " | " .. table.concat(parts, " | ")
+    end
+    WmText.Text = text
+    scaleFrameToText(watermark, WmText)
+end
+RunService.RenderStepped:Connect(function()
+    updateWatermark()
+end)
+
+-- ========== ВКЛАДКА CONFIG ==========
+local configSec = tabs.Config:section{name = "Config", side = "left"}
+
+library:config_manager(configSec)
+
+-- Watermark toggle
+configSec:toggle{
+    name = "Watermark",
+    flag = "custom_watermark",
+    default = false,
+    callback = function(val)
+        ScreenGui.Enabled = val
+    end
+}
+
+-- Multibox for watermark info
+local watermarkInfoOptions = {"FPS", "Date", "Name"}
+configSec:dropdown{
+    name = "Watermark Info",
+    flag = "watermark_info",
+    items = watermarkInfoOptions,
+    multi = true,
+    default = {"FPS", "Date", "Name"},
+    callback = function() end
+}
+
+-- Accent colorpicker
+library:update_theme("accent", Color3.fromRGB(255,255,255))
+configSec:colorpicker{
+    name = "Accent Color",
+    flag = "accent_color",
+    color = Color3.fromRGB(255,255,255),
+    callback = function(color)
+        library:update_theme("accent", color)
+        stroke.Color = color
+        uiGradient.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, color),
+            ColorSequenceKeypoint.new(0.5, Color3.new(color.R, color.G/2, color.B/2)),
+            ColorSequenceKeypoint.new(1, color)
+        })
+    end
+}
+
+-- Set watermark to center by default
+watermark.Position = UDim2.new(0.5, -60, 0, 10)
+currentPreset = "TopCenter"
+
+-- Всё, основа готова. Остальные вкладки пока пустые, туда потом добавишь фичи. 
