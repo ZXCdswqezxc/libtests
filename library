@@ -2694,7 +2694,7 @@ end
                     FontFace = library.font,
                     TextColor3 = Color3.fromRGB(170, 170, 170),
                     BorderColor3 = Color3.fromRGB(56, 56, 56),
-                    Text = "option 1, option 3",
+                    Text = cfg.name and (cfg.name .. " ▼") or "опция ▼",
                     TextStrokeTransparency = 0.5,
                     TextXAlignment = Enum.TextXAlignment.Left,
                     Size = UDim2.new(1, -4, 1, -4),
@@ -2756,7 +2756,7 @@ end
                     BackgroundColor3 = Color3.fromRGB(38, 38, 38)
                 })
                 
-                local options = library:create("Frame", {
+                local options = library:create("ScrollingFrame", {
                     Parent = content,
                     Name = "",
                     BackgroundTransparency = 1,
@@ -2764,6 +2764,10 @@ end
                     BorderColor3 = Color3.fromRGB(0, 0, 0),
                     Size = UDim2.new(1, -4, 1, -4),
                     BorderSizePixel = 0,
+                    ScrollBarThickness = 2,
+                    CanvasSize = UDim2.new(0, 0, 0, 0),
+                    AutomaticCanvasSize = Enum.AutomaticSize.Y,
+                    ScrollingDirection = Enum.ScrollingDirection.Y,
                     BackgroundColor3 = Color3.fromRGB(50, 50, 50)
                 })
                 
@@ -2838,13 +2842,8 @@ end
                     end
                 end
 
-                -- Проверка длины текста для мультибокса и его обрезка при необходимости
-                local display_text = is_table and table.concat(selected, ",  ") or selected[1] or "nun"
-                if #display_text > 20 and is_table then
-                    display_text = display_text:sub(1, 17) .. "..."
-                end
-
-                dropdown.Text = display_text
+                -- Показываем название опции со стрелкой вниз вместо выбранных значений
+                dropdown.Text = cfg.name and (cfg.name .. " ▼") or "опция ▼"
                 flags[cfg.flag] = is_table and selected or selected[1]
                 cfg.callback(flags[cfg.flag]) 
             end
@@ -3798,19 +3797,24 @@ end
                 keybind.Text = "..."	
 
                 cfg.binding = library:connection(uis.InputBegan, function(keycode, game_event)  
+                    if game_event then return end
+                    if keycode.KeyCode == Enum.KeyCode.Escape then return end
+                    
                     cfg.set(keycode.KeyCode)
                     
-                    cfg.binding:Disconnect() 
-                    cfg.binding = nil
+                    if cfg.binding then
+                        cfg.binding:Disconnect() 
+                        cfg.binding = nil
+                    end
                 end)
             end)
 
             library:connection(uis.InputBegan, function(input, game_event) 
                 if not game_event then 
-                    if input.KeyCode == cfg.key then 
+                    if input.KeyCode == cfg.key or input.UserInputType == cfg.key then 
                         if cfg.mode == "toggle" then 
-                            toggled = not toggled
-                            cfg.set(toggled)
+                            cfg.active = not cfg.active
+                            cfg.set(cfg.active)
                         elseif cfg.mode == "hold" then 
                             cfg.set(true)
                         end
