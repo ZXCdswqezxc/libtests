@@ -1,13 +1,197 @@
 -- Загрузка библиотеки
 local library = loadstring(game:HttpGet("https://raw.githubusercontent.com/ZXCdswqezxc/libtests/refs/heads/main/library"))()
 
--- Создаём окно с 6 вкладками, весь HUD скрыт
+-- Создание кастомной ватермарки
+local watermark = {}
+
+do
+    -- Функция для форматирования даты
+    local function get_date_text()
+        local date = os.date("*t")
+        return string.format("replace.gg | %02d.%02d.%d %02d:%02d:%02d", 
+            date.day, date.month, date.year, date.hour, date.min, date.sec)
+    end
+
+    -- Создаем элементы UI для ватермарки
+    local holder = library:create("Frame", {
+        Parent = library.gui,
+        Name = "CustomWatermark",
+        BackgroundTransparency = 1,
+        Position = UDim2.new(0, 20, 0, 20),
+        BorderColor3 = Color3.fromRGB(19, 19, 19),
+        ZIndex = 2,
+        AutomaticSize = Enum.AutomaticSize.X,
+        BackgroundColor3 = Color3.fromRGB(40, 40, 40),
+        Visible = false -- По умолчанию скрыто
+    })
+    
+    local inline1 = library:create("Frame", {
+        Parent = holder,
+        Name = "",
+        Active = true, 
+        Draggable = true, 
+        BorderColor3 = Color3.fromRGB(0, 0, 0),
+        Size = UDim2.new(0, 250, 0, 40), -- Увеличил размер для отображения полной даты
+        BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    })
+    
+    local accent_line = library:create("Frame", {
+        Parent = inline1,
+        Name = "",
+        BorderColor3 = Color3.fromRGB(34, 34, 34),
+        Size = UDim2.new(1, 0, 0, 2),
+        BorderSizePixel = 0,
+        BackgroundColor3 = Color3.fromRGB(100, 100, 255)
+    })
+
+    -- Подключаем акцентный цвет к теме
+    library:apply_theme(accent_line, "accent", "BackgroundColor3") 
+    
+    local depth = library:create("Frame", {
+        Parent = inline1,
+        Name = "",
+        BackgroundTransparency = 0.5,
+        Position = UDim2.new(0, 0, 0, 1),
+        BorderColor3 = Color3.fromRGB(0, 0, 0),
+        Size = UDim2.new(1, 0, 0, 1),
+        BorderSizePixel = 0,
+        BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    })
+    
+    local inline2 = library:create("Frame", {
+        Parent = inline1,
+        Name = "",
+        Position = UDim2.new(0, 2, 0, 2),
+        BorderColor3 = Color3.fromRGB(0, 0, 0),
+        Size = UDim2.new(1, -4, 1, -4),
+        BorderSizePixel = 0,
+        BackgroundColor3 = Color3.fromRGB(26, 26, 26)
+    })
+    
+    local main = library:create("Frame", {
+        Parent = inline2,
+        Name = "",
+        Position = UDim2.new(0, 2, 0, 2),
+        BorderColor3 = Color3.fromRGB(57, 57, 57),
+        Size = UDim2.new(1, -4, 1, -4),
+        BackgroundColor3 = Color3.fromRGB(26, 26, 26)
+    })
+    
+    local tab_inline = library:create("Frame", {
+        Parent = main,
+        Name = "",
+        Position = UDim2.new(0, 6, 0, 6),
+        BorderColor3 = Color3.fromRGB(19, 19, 19),
+        Size = UDim2.new(1, -12, 1, -12),
+        BorderSizePixel = 0,
+        BackgroundColor3 = Color3.fromRGB(19, 19, 19)
+    })
+    
+    local tabs = library:create("Frame", {
+        Parent = tab_inline,
+        Name = "",
+        Position = UDim2.new(0, 2, 0, 2),
+        BorderColor3 = Color3.fromRGB(56, 56, 56),
+        Size = UDim2.new(1, -4, 1, -4),
+        BackgroundColor3 = Color3.fromRGB(22, 22, 22)
+    })
+    
+    local name_label = library:create("TextLabel", {
+        Parent = tabs,
+        Name = "",
+        FontFace = library.font,
+        TextColor3 = Color3.fromRGB(100, 100, 255), -- Цвет акцента по умолчанию
+        BorderColor3 = Color3.fromRGB(0, 0, 0),
+        Text = get_date_text(),
+        TextStrokeTransparency = 0.5,
+        Size = UDim2.new(0, 0, 1, 0),
+        Position = UDim2.new(0, 8, 0, 0),
+        BackgroundTransparency = 1,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        BorderSizePixel = 0,
+        AutomaticSize = Enum.AutomaticSize.X,
+        TextSize = 12,
+        BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    })
+    
+    -- Подключаем цвет текста к акцентному цвету
+    library:apply_theme(name_label, "accent", "TextColor3")
+    
+    local padding = library:create("UIPadding", {
+        Parent = tabs,
+        Name = "",
+        PaddingRight = UDim.new(0, 21)
+    })
+    
+    local glow = library:create("ImageLabel", {
+        Parent = accent_line,
+        Name = "",
+        ImageColor3 = Color3.fromRGB(100, 100, 255),
+        ScaleType = Enum.ScaleType.Slice,
+        ImageTransparency = 0.8999999761581421,
+        BorderColor3 = Color3.fromRGB(0, 0, 0),
+        BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+        Image = "http://www.roblox.com/asset/?id=18245826428",
+        BackgroundTransparency = 1,
+        Position = UDim2.new(0, -20, 0, -20),
+        Size = UDim2.new(1, 40, 0, 42),
+        ZIndex = 2,
+        BorderSizePixel = 0,
+        SliceCenter = Rect.new(Vector2.new(21, 21), Vector2.new(79, 79))
+    })
+
+    -- Подключаем свечение к акцентному цвету
+    library:apply_theme(glow, "accent", "ImageColor3")
+    
+    -- Функционал ватермарки
+    watermark = {
+        holder = holder,
+        
+        -- Функция для переключения видимости
+        toggle = function(state)
+            holder.Visible = state
+            
+            -- Если включаем ватермарку, сразу обновляем текст даты
+            if state then
+                watermark.update_date()
+            end
+        end,
+        
+        -- Функция для обновления текста
+        update_text = function(text)
+            name_label.Text = text
+            -- Обновляем размер для нового текста
+            inline1.Size = UDim2.new(0, ((#text / 2) * 5) + 100, 0, 40)
+        end,
+        
+        -- Функция для обновления даты
+        update_date = function()
+            watermark.update_text(get_date_text())
+        end
+    }
+    
+    -- Запускаем таймер для обновления даты (каждую секунду)
+    task.spawn(function()
+        while true do
+            task.wait(1) -- Обновляем дату каждую секунду
+            
+            -- Обновляем только если ватермарка видима
+            if holder.Visible then
+                watermark.update_date()
+            end
+        end
+    end)
+end
+
+-- Создаём окно с 6 вкладками
 local win = library:window{
-    Name = "replace.gg",
-    watermarkvisible = false,
-    playerlistvisible = false,
-    keybindlistvisible = false
+    name = "replace.gg",
 }
+
+-- Скрываем все UI элементы при запуске
+win.toggle_watermark(false)    -- Скрываем встроенный водяной знак
+win.toggle_list(false)         -- Скрываем список привязок клавиш
+win.toggle_playerlist(false)   -- Скрываем список игроков
 
 local tabs = {
     Combat = win:tab{name = "Combat"},
@@ -18,195 +202,175 @@ local tabs = {
     Config = win:tab{name = "Config"}
 }
 
--- ========== КАСТОМНАЯ ВАТЕРМАРКА ==========
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
-local TextService = game:GetService("TextService")
-
-local player = Players.LocalPlayer
-local playerGui = player:WaitForChild("PlayerGui")
-
--- Создаём watermark GUI (по умолчанию скрыта)
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Parent = playerGui
-ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-ScreenGui.Enabled = false -- будет включаться через toggle
-
-local watermark = Instance.new("Frame")
-watermark.Name = "watermark"
-watermark.Parent = ScreenGui
-watermark.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-watermark.BorderColor3 = Color3.fromRGB(20, 20, 20)
-watermark.BorderSizePixel = 0
-watermark.Position = UDim2.new(1, -130, 0, 10)
-watermark.Size = UDim2.new(0, 120, 0, 20)
-
-local stroke = Instance.new("UIStroke")
-stroke.Name = "stroke"
-stroke.Parent = watermark
-stroke.Color = Color3.fromRGB(255, 0, 0)
-stroke.Thickness = 2
-stroke.Transparency = 0.3
-
-local uiGradient = Instance.new("UIGradient")
-uiGradient.Name = "uiGradient"
-uiGradient.Parent = stroke
-uiGradient.Color = ColorSequence.new({
-    ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 0, 0)),
-    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 100, 100)),
-    ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 0, 0))
-})
-uiGradient.Rotation = 45
-
-local WmText = Instance.new("TextLabel")
-WmText.Name = "WmText"
-WmText.Parent = watermark
-WmText.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-WmText.BackgroundTransparency = 1
-WmText.BorderColor3 = Color3.fromRGB(0, 0, 0)
-WmText.BorderSizePixel = 0
-WmText.Size = UDim2.new(1, 0, 1, 0)
-WmText.Font = Enum.Font.Sarpanch
-WmText.TextColor3 = Color3.fromRGB(255, 255, 255)
-WmText.TextSize = 16
-WmText.Text = ""
-
-local presets = {
-    TopLeft = UDim2.new(0, 10, 0, 10),
-    TopRight = UDim2.new(1, -130, 0, 10),
-    TopCenter = UDim2.new(0.5, -60, 0, 10)
+-- Добавляем секции в Misc вкладку
+local misc_sections = {
+    camera = tabs.Misc:section{name = "Camera", side = "left"},
+    extras = tabs.Misc:section{name = "Extras", side = "right"}
 }
-local currentPreset = "TopRight"
-local function setWatermarkPreset(presetName)
-    if presets[presetName] then
-        watermark.Position = presets[presetName]
-        currentPreset = presetName
-    end
-end
-local function cyclePresets()
-    local presetOrder = {"TopLeft", "TopRight", "TopCenter"}
-    local currentIndex = table.find(presetOrder, currentPreset) or 1
-    local nextIndex = (currentIndex % #presetOrder) + 1
-    setWatermarkPreset(presetOrder[nextIndex])
-end
-local function scaleFrameToText(frame, textLabel)
-    local text = textLabel.Text
-    local font = textLabel.Font
-    local textSize = textLabel.TextSize
-    local textBounds = TextService:GetTextSize(text, textSize, font, Vector2.new(math.huge, math.huge))
-    frame.Size = UDim2.new(0, textBounds.X + 10, 0, textBounds.Y + 5)
-end
-local function makeDraggable(frame)
-    local dragging = false
-    local dragInput, dragStart, startPos
-    frame.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            dragging = true
-            dragStart = input.Position
-            startPos = frame.Position
-            currentPreset = nil
-            local connection
-            connection = input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    dragging = false
-                    connection:Disconnect()
-                end
-            end)
-        end
-    end)
-    UserInputService.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement and dragging then
-            local delta = input.Position - dragStart
-            frame.Position = UDim2.new(
-                startPos.X.Scale,
-                startPos.X.Offset + delta.X,
-                startPos.Y.Scale,
-                startPos.Y.Offset + delta.Y
-            )
-        end
-    end)
-end
-makeDraggable(watermark)
-UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
-    if not gameProcessedEvent and input.KeyCode == Enum.KeyCode.P then
-        cyclePresets()
-    end
-end)
-local lastFpsUpdate = 0
-local fps = 0
-local function calculateFps()
-    local currentTime = tick()
-    if currentTime - lastFpsUpdate >= 3 then
-        fps = math.floor(1 / RunService.RenderStepped:Wait())
-        lastFpsUpdate = currentTime
-    end
-end
-local function updateWatermark()
-    calculateFps()
-    local date = os.date("%Y-%m-%d %H:%M:%S")
-    local infoTypes = library.flags.watermark_info or {"FPS", "Date", "Name"}
-    local parts = {}
-    -- Строгий порядок: FPS | Date | Name
-    if table.find(infoTypes, "FPS") then table.insert(parts, string.format("FPS: %d", fps)) end
-    if table.find(infoTypes, "Date") then table.insert(parts, date) end
-    if table.find(infoTypes, "Name") then table.insert(parts, player.Name) end
-    local text = "replace.gg"
-    if #parts > 0 then
-        text = text .. " | " .. table.concat(parts, " | ")
-    end
-    WmText.Text = text
-    scaleFrameToText(watermark, WmText)
-end
-RunService.RenderStepped:Connect(function()
-    updateWatermark()
-end)
 
--- ========== ВКЛАДКА CONFIG ==========
-local configSec = tabs.Config:section{name = "Config", side = "left"}
-
-library:config_manager(configSec)
-
--- Watermark toggle
-configSec:toggle{
-    name = "Watermark",
-    flag = "custom_watermark",
+-- Добавляем toggle для Infinity Zoom
+misc_sections.camera:toggle{
+    name = "Infinity Zoom",
+    flag = "infinity_zoom",
     default = false,
-    callback = function(val)
-        ScreenGui.Enabled = val
+    callback = function(state)
+        if state then
+            game.Players.LocalPlayer.CameraMaxZoomDistance = math.huge
+        else
+            -- Возвращаем стандартное значение при отключении
+            game.Players.LocalPlayer.CameraMaxZoomDistance = 128
+        end
     end
 }
 
--- Multibox for watermark info
-local watermarkInfoOptions = {"FPS", "Date", "Name"}
-configSec:dropdown{
-    name = "Watermark Info",
-    flag = "watermark_info",
-    items = watermarkInfoOptions,
-    multi = true,
-    default = {"FPS", "Date", "Name"},
-    callback = function() end
+-- Добавляем секции в Config вкладку
+local config_sections = {
+    configs = tabs.Config:section{name = "Configurations", side = "left"},
+    menu = tabs.Config:section{name = "Menu Settings", side = "right"}
 }
 
--- Accent colorpicker
-library:update_theme("accent", Color3.fromRGB(255,255,255))
-configSec:colorpicker{
+-- Настройка секции конфигураций
+config_sections.configs:textbox{
+    name = "Configuration Name",
+    flag = "config_name",
+    placeholder = "default",
+    clear_on_focus = false,
+    default = "default"
+}
+
+config_sections.configs:button{
+    name = "Save Configuration",
+    callback = function()
+        local config_name = library.flags["config_name"] or "default"
+        local config_data = library:get_config()
+        
+        -- Сохранение в файл
+        writefile(library.directory .. "/configs/" .. config_name .. ".cfg", config_data)
+        
+        -- Обновляем список конфигураций
+        library:config_list_update()
+        
+        -- Показываем уведомление
+        library:notification{
+            text = "Configuration saved: " .. config_name,
+            time = 3
+        }
+    end
+}
+
+config_sections.configs:button{
+    name = "Load Configuration",
+    callback = function()
+        local config_name = library.flags["config_name"] or "default"
+        
+        -- Проверяем, существует ли файл
+        if isfile(library.directory .. "/configs/" .. config_name .. ".cfg") then
+            -- Загружаем конфигурацию из файла
+            local config_data = readfile(library.directory .. "/configs/" .. config_name .. ".cfg")
+            library:load_config(config_data)
+            
+            -- Показываем уведомление
+            library:notification{
+                text = "Configuration loaded: " .. config_name,
+                time = 3
+            }
+        else
+            -- Показываем уведомление об ошибке
+            library:notification{
+                text = "Error: Configuration not found",
+                time = 3
+            }
+        end
+    end
+}
+
+-- Добавляем dropdown для выбора сохраненных конфигураций
+local config_dropdown = config_sections.configs:dropdown{
+    name = "Saved Configurations",
+    flag = "config_dropdown",
+    options = {},
+    callback = function(selected)
+        library.flags["config_name"] = selected
+    end
+}
+
+-- Сохраняем ссылку на dropdown для обновления списка конфигураций
+library.config_holder = config_dropdown
+
+-- Обновляем список конфигураций при загрузке
+library:config_list_update()
+
+config_sections.configs:button{
+    name = "Delete Configuration",
+    callback = function()
+        local config_name = library.flags["config_name"] or "default"
+        
+        -- Проверяем, существует ли файл
+        if isfile(library.directory .. "/configs/" .. config_name .. ".cfg") then
+            -- Удаляем файл
+            delfile(library.directory .. "/configs/" .. config_name .. ".cfg")
+            
+            -- Обновляем список конфигураций
+            library:config_list_update()
+            
+            -- Показываем уведомление
+            library:notification{
+                text = "Configuration deleted: " .. config_name,
+                time = 3
+            }
+        else
+            -- Показываем уведомление об ошибке
+            library:notification{
+                text = "Error: Configuration not found",
+                time = 3
+            }
+        end
+    end
+}
+
+-- Настройка секции меню
+config_sections.menu:colorpicker{
     name = "Accent Color",
     flag = "accent_color",
-    color = Color3.fromRGB(255,255,255),
+    default = Color3.fromRGB(100, 100, 255), -- Цвет по умолчанию
     callback = function(color)
         library:update_theme("accent", color)
-        stroke.Color = color
-        uiGradient.Color = ColorSequence.new({
-            ColorSequenceKeypoint.new(0, color),
-            ColorSequenceKeypoint.new(0.5, Color3.new(color.R, color.G/2, color.B/2)),
-            ColorSequenceKeypoint.new(1, color)
-        })
     end
 }
 
--- Set watermark to center by default
-watermark.Position = UDim2.new(0.5, -60, 0, 10)
-currentPreset = "TopCenter"
+config_sections.menu:toggle{
+    name = "Watermark",
+    flag = "watermark_enabled",
+    default = false, -- По умолчанию выключено
+    callback = function(state)
+        -- Используем нашу собственную функцию
+        watermark.toggle(state)
+    end
+}
 
--- Всё, основа готова. Остальные вкладки пока пустые, туда потом добавишь фичи. 
+config_sections.menu:keybind{
+    name = "Menu Toggle Key",
+    flag = "menu_toggle_key",
+    default = Enum.KeyCode.Insert, -- Insert по умолчанию
+    mode = "toggle",
+    callback = function(state)
+        win.set_menu_visibility(state)
+    end
+}
+
+-- Создаем обработчик для клавиши переключения меню
+library:connection(game:GetService("UserInputService").InputBegan, function(input, gameProcessed)
+    if gameProcessed then return end
+    
+    local menu_key = library.flags["menu_toggle_key"]
+    if menu_key and input.KeyCode == menu_key then
+        local current_state = not win:IsVisible()
+        win.set_menu_visibility(current_state)
+    end
+end)
+
+-- Отображаем уведомление о загрузке скрипта
+library:notification{
+    text = "Script successfully loaded!",
+    time = 3
+}
