@@ -1,0 +1,120 @@
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+-- Create ScreenGui
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Parent = playerGui
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.Name = "WatermarkGui"
+
+-- Create Holder Frame
+local holder = Instance.new("Frame")
+holder.Name = "holder"
+holder.Parent = ScreenGui
+holder.BackgroundColor3 = Color3.fromRGB(29, 29, 29)
+holder.BackgroundTransparency = 0.05
+holder.BorderColor3 = Color3.fromRGB(0, 0, 0)
+holder.BorderSizePixel = 0
+holder.Position = UDim2.new(0.418566763, 0, 0.475429982, 0)
+holder.Size = UDim2.new(0, 210, 0, 40)
+
+-- Add UICorner
+local UICorner = Instance.new("UICorner")
+UICorner.Parent = holder
+UICorner.CornerRadius = UDim.new(0, 4)
+
+-- Create Information Holder Frame
+local informationholder = Instance.new("Frame")
+informationholder.Name = "informationholder"
+informationholder.Parent = holder
+informationholder.BackgroundColor3 = Color3.fromRGB(29, 29, 29)
+informationholder.BackgroundTransparency = 0.1
+informationholder.BorderColor3 = Color3.fromRGB(0, 0, 0)
+informationholder.BorderSizePixel = 0
+informationholder.Position = UDim2.new(0, 0, 0.5, 0)
+informationholder.Size = UDim2.new(0, 210, 0, 20)
+
+-- Create Header (Cheat Name)
+local headercheatname = Instance.new("TextLabel")
+headercheatname.Name = "header(cheatname)"
+headercheatname.Parent = holder
+headercheatname.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+headercheatname.BackgroundTransparency = 1
+headercheatname.BorderColor3 = Color3.fromRGB(0, 0, 0)
+headercheatname.BorderSizePixel = 0
+headercheatname.Size = UDim2.new(0, 190, 0, 20)
+headercheatname.Position = UDim2.new(0, 10, 0, 0) -- 10px padding on left
+headercheatname.Font = Enum.Font.SourceSansBold
+headercheatname.Text = "ExecutorX"
+headercheatname.TextColor3 = Color3.fromRGB(255, 255, 255)
+headercheatname.TextSize = 14
+headercheatname.TextXAlignment = Enum.TextXAlignment.Left -- Left-aligned
+headercheatname.TextYAlignment = Enum.TextYAlignment.Center
+
+-- Create Info Label
+local infolabel = Instance.new("TextLabel")
+infolabel.Name = "infolabel"
+infolabel.Parent = informationholder
+infolabel.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+infolabel.BackgroundTransparency = 1
+infolabel.BorderColor3 = Color3.fromRGB(0, 0, 0)
+infolabel.BorderSizePixel = 0
+infolabel.Size = UDim2.new(0, 190, 1, 0)
+infolabel.Position = UDim2.new(0, 10, 0, 0) -- 10px padding on left
+infolabel.Font = Enum.Font.SourceSans
+infolabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+infolabel.TextSize = 12
+infolabel.TextXAlignment = Enum.TextXAlignment.Center -- Centered for info
+infolabel.TextYAlignment = Enum.TextYAlignment.Center
+
+-- Function to update info label
+local function updateInfo()
+    local fps = math.floor(1 / RunService.RenderStepped:Wait())
+    local dateTime = os.date("%Y-%m-%d %H:%M:%S")
+    local username = player.Name
+    infolabel.Text = string.format("FPS: %d | %s | %s", fps, dateTime, username)
+end
+
+-- Update info every second in a coroutine
+task.spawn(function()
+    while true do
+        updateInfo()
+        task.wait(1) -- Update every second
+    end
+end)
+
+-- Smooth dragging functionality using UserInputService
+local dragging = false
+local dragStart = nil
+local startPos = nil
+
+holder.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        dragStart = input.Position
+        startPos = holder.Position
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+        local delta = input.Position - dragStart
+        local newPos = UDim2.new(
+            startPos.X.Scale,
+            startPos.X.Offset + delta.X,
+            startPos.Y.Scale,
+            startPos.Y.Offset + delta.Y
+        )
+        holder.Position = newPos
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = false
+    end
+end)
