@@ -4998,28 +4998,28 @@ end
 
 -- Добавляю универсальный конфиг-менеджер
 function library:config_manager(section)
-    -- TextBox для имени конфига
+    -- TextBox for config name
     local config_name_box = section:textbox{
         name = "Config Name",
         flag = "config_name",
-        placeholder = "Введите имя конфига...",
+        placeholder = "Enter config name...",
         default = ""
     }
-    -- Dropdown для списка конфигов
+    -- Dropdown for config list
     local configManager = section:dropdown{
         name = "Config Manager",
         flag = "config_list",
         items = {},
         callback = function() end
     }
-    library.config_holder = configManager -- для update
-    -- Кнопка Save
+    library.config_holder = configManager -- for update
+    -- Save button
     section:button{
         name = "Save Config",
         callback = function()
             local name = library.flags.config_name
             if not name or name == "" then
-                library:notification{text = "Введите имя конфига!"}
+                library:notification{text = "Enter config name!"}
                 return
             end
             writefile(library.directory.."/configs/"..name..".cfg", library:get_config())
@@ -5027,7 +5027,7 @@ function library:config_manager(section)
             library:config_list_update()
         end
     }
-    -- Кнопка Load
+    -- Load button
     section:button{
         name = "Load Config",
         callback = function()
@@ -5037,12 +5037,12 @@ function library:config_manager(section)
                 library:load_config(data)
                 library:notification{text = "Config loaded: "..name}
             else
-                library:notification{text = "Выберите конфиг!"}
+                library:notification{text = "Select config!"}
             end
             library:config_list_update()
         end
     }
-    -- Кнопка Delete
+    -- Delete button
     section:button{
         name = "Delete Config",
         callback = function()
@@ -5052,7 +5052,7 @@ function library:config_manager(section)
                 library:notification{text = "Config deleted: "..name}
                 library:config_list_update()
             else
-                library:notification{text = "Выберите конфиг!"}
+                library:notification{text = "Select config!"}
             end
         end
     }
