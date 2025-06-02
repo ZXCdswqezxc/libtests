@@ -540,8 +540,6 @@ end
                     }
                 })                
                 
-                library:apply_theme(TEXT_ANIMATION_GRADIENT, "accent", "Color") -- Добавляем синхронизацию с цветом акцента
-                
                 local UIPadding = library:create("UIPadding", {
                     Parent = tabs,
                     Name = "",
