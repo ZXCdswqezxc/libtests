@@ -1,6 +1,7 @@
 local Players = game:GetService("Players")
-local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TextService = game:GetService("TextService")
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -9,112 +10,150 @@ local playerGui = player:WaitForChild("PlayerGui")
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Parent = playerGui
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-ScreenGui.Name = "WatermarkGui"
 
--- Create Holder Frame
-local holder = Instance.new("Frame")
-holder.Name = "holder"
-holder.Parent = ScreenGui
-holder.BackgroundColor3 = Color3.fromRGB(29, 29, 29)
-holder.BackgroundTransparency = 0.05
-holder.BorderColor3 = Color3.fromRGB(0, 0, 0)
-holder.BorderSizePixel = 0
-holder.Position = UDim2.new(0.418566763, 0, 0.475429982, 0)
-holder.Size = UDim2.new(0, 210, 0, 40)
+-- Watermark
+local watermark = Instance.new("Frame")
+watermark.Name = "watermark"
+watermark.Parent = ScreenGui
+watermark.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+watermark.BorderColor3 = Color3.fromRGB(20, 20, 20)
+watermark.BorderSizePixel = 0
+watermark.Position = UDim2.new(0.459283382, 0, 0.524570048, 0) -- Default position
+watermark.Size = UDim2.new(0, 120, 0, 20)
 
--- Add UICorner
-local UICorner = Instance.new("UICorner")
-UICorner.Parent = holder
-UICorner.CornerRadius = UDim.new(0, 4)
+local stroke = Instance.new("UIStroke")
+stroke.Name = "stroke"
+stroke.Parent = watermark
+stroke.Color = Color3.fromRGB(255, 0, 0)
+stroke.Thickness = 2
+stroke.Transparency = 0.3
 
--- Create Information Holder Frame
-local informationholder = Instance.new("Frame")
-informationholder.Name = "informationholder"
-informationholder.Parent = holder
-informationholder.BackgroundColor3 = Color3.fromRGB(29, 29, 29)
-informationholder.BackgroundTransparency = 0.1
-informationholder.BorderColor3 = Color3.fromRGB(0, 0, 0)
-informationholder.BorderSizePixel = 0
-informationholder.Position = UDim2.new(0, 0, 0.5, 0)
-informationholder.Size = UDim2.new(0, 210, 0, 20)
+local uiGradient = Instance.new("UIGradient")
+uiGradient.Name = "uiGradient"
+uiGradient.Parent = stroke
+uiGradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 0, 0)),
+    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 100, 100)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 0, 0))
+})
+uiGradient.Rotation = 45
 
--- Create Header (Cheat Name)
-local headercheatname = Instance.new("TextLabel")
-headercheatname.Name = "header(cheatname)"
-headercheatname.Parent = holder
-headercheatname.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-headercheatname.BackgroundTransparency = 1
-headercheatname.BorderColor3 = Color3.fromRGB(0, 0, 0)
-headercheatname.BorderSizePixel = 0
-headercheatname.Size = UDim2.new(0, 190, 0, 20)
-headercheatname.Position = UDim2.new(0, 10, 0, 0) -- 10px padding on left
-headercheatname.Font = Enum.Font.SourceSansBold
-headercheatname.Text = "ExecutorX"
-headercheatname.TextColor3 = Color3.fromRGB(255, 255, 255)
-headercheatname.TextSize = 14
-headercheatname.TextXAlignment = Enum.TextXAlignment.Left -- Left-aligned
-headercheatname.TextYAlignment = Enum.TextYAlignment.Center
+local WmText = Instance.new("TextLabel")
+WmText.Name = "WmText"
+WmText.Parent = watermark
+WmText.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+WmText.BackgroundTransparency = 1
+WmText.BorderColor3 = Color3.fromRGB(0, 0, 0)
+WmText.BorderSizePixel = 0
+WmText.Size = UDim2.new(1, 0, 1, 0)
+WmText.Font = Enum.Font.Sarpanch
+WmText.TextColor3 = Color3.fromRGB(255, 255, 255)
+WmText.TextSize = 16
+WmText.Text = ""
 
--- Create Info Label
-local infolabel = Instance.new("TextLabel")
-infolabel.Name = "infolabel"
-infolabel.Parent = informationholder
-infolabel.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-infolabel.BackgroundTransparency = 1
-infolabel.BorderColor3 = Color3.fromRGB(0, 0, 0)
-infolabel.BorderSizePixel = 0
-infolabel.Size = UDim2.new(0, 190, 1, 0)
-infolabel.Position = UDim2.new(0, 10, 0, 0) -- 10px padding on left
-infolabel.Font = Enum.Font.SourceSans
-infolabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-infolabel.TextSize = 12
-infolabel.TextXAlignment = Enum.TextXAlignment.Center -- Centered for info
-infolabel.TextYAlignment = Enum.TextYAlignment.Center
+-- Preset positions
+local presets = {
+    TopLeft = UDim2.new(0, 10, 0, 10), -- 10px padding from top-left
+    TopRight = UDim2.new(1, -130, 0, 10), -- 10px from top, 130px from right (accounting for width)
+    TopCenter = UDim2.new(0.5, -60, 0, 10) -- Centered horizontally, 10px from top
+}
 
--- Function to update info label
-local function updateInfo()
-    local fps = math.floor(1 / RunService.RenderStepped:Wait())
-    local dateTime = os.date("%Y-%m-%d %H:%M:%S")
-    local username = player.Name
-    infolabel.Text = string.format("FPS: %d | %s | %s", fps, dateTime, username)
+local currentPreset = "TopRight" -- Default preset
+
+-- Function to apply preset position
+local function setWatermarkPreset(presetName)
+    if presets[presetName] then
+        watermark.Position = presets[presetName]
+        currentPreset = presetName
+    end
 end
 
--- Update info every second in a coroutine
-task.spawn(function()
-    while true do
-        updateInfo()
-        task.wait(1) -- Update every second
+-- Function to cycle through presets (for keybind)
+local function cyclePresets()
+    local presetOrder = {"TopLeft", "TopRight", "TopCenter"}
+    local currentIndex = table.find(presetOrder, currentPreset) or 1
+    local nextIndex = (currentIndex % #presetOrder) + 1
+    setWatermarkPreset(presetOrder[nextIndex])
+end
+
+-- Function to calculate text bounds and scale frame
+local function scaleFrameToText(frame, textLabel)
+    local text = textLabel.Text
+    local font = textLabel.Font
+    local textSize = textLabel.TextSize
+    local textBounds = TextService:GetTextSize(text, textSize, font, Vector2.new(math.huge, math.huge))
+    
+    -- Add padding (10 pixels on X, 5 pixels on Y)
+    local newWidth = textBounds.X + 10
+    local newHeight = textBounds.Y + 5
+    
+    frame.Size = UDim2.new(0, newWidth, 0, newHeight)
+end
+
+-- Dragging functionality
+local function makeDraggable(frame)
+    local dragging = false
+    local dragInput, dragStart, startPos
+
+    frame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            dragStart = input.Position
+            startPos = frame.Position
+            currentPreset = nil -- Disable preset when dragging
+
+            local connection
+            connection = input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                    connection:Disconnect()
+                end
+            end)
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement and dragging then
+            local delta = input.Position - dragStart
+            frame.Position = UDim2.new(
+                startPos.X.Scale,
+                startPos.X.Offset + delta.X,
+                startPos.Y.Scale,
+                startPos.Y.Offset + delta.Y
+            )
+        end
+    end)
+end
+
+makeDraggable(watermark)
+
+-- Keybind to cycle presets (e.g., press 'P' to cycle)
+UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
+    if not gameProcessedEvent and input.KeyCode == Enum.KeyCode.P then
+        cyclePresets()
     end
 end)
 
--- Smooth dragging functionality using UserInputService
-local dragging = false
-local dragStart = nil
-local startPos = nil
-
-holder.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        dragging = true
-        dragStart = input.Position
-        startPos = holder.Position
+-- FPS calculation (updated every 3 seconds)
+local lastFpsUpdate = 0
+local fps = 0
+local function calculateFps()
+    local currentTime = tick()
+    if currentTime - lastFpsUpdate >= 3 then
+        fps = math.floor(1 / RunService.RenderStepped:Wait())
+        lastFpsUpdate = currentTime
     end
-end)
+end
 
-UserInputService.InputChanged:Connect(function(input)
-    if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-        local delta = input.Position - dragStart
-        local newPos = UDim2.new(
-            startPos.X.Scale,
-            startPos.X.Offset + delta.X,
-            startPos.Y.Scale,
-            startPos.Y.Offset + delta.Y
-        )
-        holder.Position = newPos
-    end
-end)
+-- Update watermark (FPS, date, username)
+local function updateWatermark()
+    calculateFps()
+    local date = os.date("%Y-%m-%d %H:%M:%S")
+    WmText.Text = string.format("replace.gg | FPS: %d | %s | %s", fps, date, player.Name)
+    scaleFrameToText(watermark, WmText)
+end
 
-UserInputService.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        dragging = false
-    end
+-- Update loop
+RunService.RenderStepped:Connect(function()
+    updateWatermark()
 end)
