@@ -411,6 +411,45 @@ end
 
             return ins 
         end
+        
+        -- Новая улучшенная функция перетаскивания
+        function library:make_draggable(frame)
+            local dragInput
+            local dragStart
+            local startPos
+            local dragging = false
+            
+            local function update(input)
+                local delta = input.Position - dragStart
+                frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+            end
+            
+            frame.InputBegan:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                    dragging = true
+                    dragStart = input.Position
+                    startPos = frame.Position
+                    
+                    input.Changed:Connect(function()
+                        if input.UserInputState == Enum.UserInputState.End then
+                            dragging = false
+                        end
+                    end)
+                end
+            end)
+            
+            frame.InputChanged:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseMovement then
+                    dragInput = input
+                end
+            end)
+            
+            library:connection(uis.InputChanged, function(input)
+                if input == dragInput and dragging then
+                    update(input)
+                end
+            end)
+        end
     -- 
 
     library.gui = library:create("ScreenGui", {
@@ -439,7 +478,6 @@ end
                     Parent = library.gui,
                     Name = "",
                     Active = true, 
-                    Draggable = true,
                     Position = UDim2.new(0.5, -cfg.size.X.Offset/2, 0.5, -cfg.size.Y.Offset/2),
                     BorderColor3 = Color3.fromRGB(8, 8, 8),
                     ZIndex = 2,
@@ -448,6 +486,7 @@ end
                 }) table.insert(library.main_frame, inline1)
                 local WINDOW_PATH = inline1
                 library:make_resizable(inline1)
+                library:make_draggable(inline1) -- Применяем нашу новую функцию перетаскивания
                 
                 local inline2 = library:create("Frame", {
                     Parent = inline1,
@@ -603,12 +642,12 @@ end
                     Name = "",
                     Visible = false, 
                     Active = true, 
-                    Draggable = true, 
                     Position = UDim2.new(0, inline1.AbsolutePosition.X + inline1.AbsoluteSize.X + 8, 0, inline1.AbsolutePosition.Y + 1), 
                     BorderColor3 = Color3.fromRGB(8, 8, 8),
                     Size = UDim2.new(0, 328, 0, 376),
                     BackgroundColor3 = Color3.fromRGB(56, 56, 56)
                 }) library:make_resizable(esp_preview)
+                library:make_draggable(esp_preview) -- Применяем улучшенную функцию перетаскивания
 
                 local name = library:create("TextLabel", {
                     Parent = esp_preview,
@@ -1335,7 +1374,7 @@ end
         function library:new_keybind(properties)
             -- Пустая функция, возвращаем заглушку с необходимыми методами
             local cfg = {}
-            
+
             function cfg.set_visible(bool) end
             function cfg.change_text(text) end
 
@@ -4089,6 +4128,11 @@ end
                 end)
             end     
         end 
+
+        function library:multibox(properties)
+            properties.multi = true
+            return self:dropdown(properties)
+        end
     -- 
 -- 
 
