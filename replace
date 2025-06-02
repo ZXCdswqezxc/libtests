@@ -174,9 +174,7 @@ do
     
     -- Запускаем таймер для обновления даты (каждую секунду)
     task.spawn(function()
-        while true do
-            task.wait(1) -- Обновляем дату каждую секунду
-            
+        while task.wait(1) do -- Оптимизация: объединяем wait с циклом
             -- Обновляем только если ватермарка видима
             if holder.Visible then
                 watermark.update_date()
@@ -206,7 +204,168 @@ local tabs = {
 -- Добавляем секции в Movement вкладку
 local movement_sections = {
     main = tabs.Movement:section{name = "Main", side = "left"},
-    extra = tabs.Movement:section{name = "Extra", side = "right"}
+    extra = tabs.Movement:section{name = "Extra", side = "right"},
+    speed = tabs.Movement:section{name = "Speed", side = "left"}
+}
+
+-- Создаем переменные для Speed Hack
+local speedHack = {
+    Enabled = false,
+    Active = false,
+    Connection = nil,
+    CharConnection = nil
+}
+
+-- Настройки спидхака
+getgenv().cframespeedtoggle = false -- Флаг активации спидхака
+getgenv().speedvalue = 0 -- Скорость (0 = стандартная, 1000 = заметное ускорение)
+getgenv().speedStep = 0.002 -- Шаг прироста скорости на единицу speedvalue (фиксированное значение)
+
+-- Функция для отключения всех соединений спидхака
+local function disconnectSpeedHack()
+    if speedHack.Connection and speedHack.Connection.Connected then
+        speedHack.Connection:Disconnect()
+        speedHack.Connection = nil
+    end
+    
+    if speedHack.CharConnection and speedHack.CharConnection.Connected then
+        speedHack.CharConnection:Disconnect()
+        speedHack.CharConnection = nil
+    end
+end
+
+-- Функция для настройки Speed Hack
+local function setupSpeedHack()
+    -- Проверяем, включена ли функция
+    if not speedHack.Enabled then return end
+    
+    local Players = game:GetService("Players")
+    local RunService = game:GetService("RunService")
+    local LocalPlayer = Players.LocalPlayer
+    
+    -- Удаление ненужных скриптов из персонажа
+    if LocalPlayer.Character then
+        for _, v in pairs(LocalPlayer.Character:GetChildren()) do
+            if v:IsA("Script") and v.Name ~= "Health" and v.Name ~= "Sound" and v:FindFirstChild("LocalScript") then
+                v:Destroy()
+            end
+        end
+    end
+    
+    -- Отключаем предыдущие соединения для экономии ресурсов
+    disconnectSpeedHack()
+    
+    -- Обработка добавления нового персонажа
+    speedHack.CharConnection = LocalPlayer.CharacterAdded:Connect(function(char)
+        repeat task.wait() until LocalPlayer.Character -- Ждем, пока персонаж загрузится
+        
+        char.ChildAdded:Connect(function(child)
+            if child:IsA("Script") and child:FindFirstChild("LocalScript") then
+                task.wait(0.1) -- Небольшая задержка для стабильности
+                child.LocalScript:FireServer()
+            end
+        end)
+    end)
+    
+    -- Основной цикл спидхака
+    speedHack.Connection = RunService.Heartbeat:Connect(function()
+        if speedHack.Enabled and speedHack.Active and LocalPlayer.Character and 
+           LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and
+           LocalPlayer.Character:FindFirstChild("Humanoid") then
+            
+            local humanoidRootPart = LocalPlayer.Character.HumanoidRootPart
+            local moveDirection = LocalPlayer.Character.Humanoid.MoveDirection
+            
+            -- Линейное масштабирование скорости: speedvalue * speedStep
+            local speedMultiplier = getgenv().speedvalue * getgenv().speedStep
+            
+            humanoidRootPart.CFrame = humanoidRootPart.CFrame + (moveDirection * speedMultiplier)
+        end
+    end)
+end
+
+-- Добавляем toggle для Speed Hack (мастер-переключатель)
+movement_sections.speed:toggle{
+    name = "Speed Hack",
+    flag = "speed_hack_enabled",
+    default = false,
+    callback = function(state)
+        speedHack.Enabled = state
+        
+        if state then
+            setupSpeedHack()
+            library:notification{
+                text = "Speed Hack enabled (Press keybind to activate)",
+                time = 3
+            }
+        else
+            speedHack.Active = false
+            getgenv().cframespeedtoggle = false
+            disconnectSpeedHack()
+            
+            library:notification{
+                text = "Speed Hack disabled",
+                time = 3
+            }
+        end
+    end
+}
+
+-- Добавляем textbox для настройки скорости
+movement_sections.speed:textbox{
+    name = "Speed Value",
+    flag = "speed_value",
+    placeholder = "1000",
+    default = "1000",
+    clear_on_focus = true,
+    callback = function(text)
+        -- Проверяем, что введено число
+        local number = tonumber(text)
+        if number and number >= 0 then
+            getgenv().speedvalue = number
+            library:notification{
+                text = "Speed set to " .. number,
+                time = 3
+            }
+        else
+            library:notification{
+                text = "Please enter a valid number",
+                time = 3
+            }
+        end
+    end
+}
+
+-- Добавляем keybind для переключения активности Speed Hack
+movement_sections.speed:keybind{
+    name = "Speed Toggle Key",
+    flag = "speed_toggle_key",
+    default = Enum.KeyCode.X,
+    mode = "toggle",
+    callback = function(state)
+        if not speedHack.Enabled then
+            library:notification{
+                text = "Enable Speed Hack first!",
+                time = 3
+            }
+            return
+        end
+        
+        speedHack.Active = state
+        getgenv().cframespeedtoggle = state
+        
+        if state then
+            library:notification{
+                text = "Speed Hack: ACTIVE",
+                time = 3
+            }
+        else
+            library:notification{
+                text = "Speed Hack: INACTIVE",
+                time = 3
+            }
+        end
+    end
 }
 
 -- AntiGround функционал
@@ -224,6 +383,9 @@ local antiGround = {
 
 -- Функция для настройки AntiGround
 local function setupAntiGround()
+    -- Проверяем, включена ли функция
+    if not antiGround.Enabled then return end
+    
     local Players = game:GetService("Players")
     local RunService = game:GetService("RunService")
     local LocalPlayer = Players.LocalPlayer
@@ -901,19 +1063,36 @@ local function disconnectDestroyCheaters()
     destroyCheaters.Connections = {}
 end
 
--- Heartbeat цикл
-local heartbeatConn = Runfinobe.Heartbeat:Connect(function()
-    if not destroyCheaters.Enabled or not destroyCheaters.Active then return end
-    if LocalFinobe.Character and LocalFinobe.Character:FindFirstChild("HumanoidRootPart") then
-        local FinobeChar = LocalFinobe.Character.HumanoidRootPart
-        local Offset = FinobeChar.CFrame * NewCFrame(9e9, 0/0, math.huge)
-        destroyCheaters.Finobe2 = FinobeChar.CFrame
-        FinobeChar.CFrame = Offset
-        Runfinobe.RenderStepped:Wait()
-        FinobeChar.CFrame = destroyCheaters.Finobe2
-    end
-end)
-table.insert(destroyCheaters.Connections, heartbeatConn)
+-- Функция для настройки Destroy Cheaters
+local function setupDestroyCheaters()
+    -- Отключаем предыдущие соединения
+    disconnectDestroyCheaters()
+    
+    -- Heartbeat для телепортации
+    local heartbeatConn = Runfinobe.Heartbeat:Connect(function()
+        if not destroyCheaters.Enabled or not destroyCheaters.Active then return end
+        if LocalFinobe.Character and LocalFinobe.Character:FindFirstChild("HumanoidRootPart") then
+            local FinobeChar = LocalFinobe.Character.HumanoidRootPart
+            local Offset = FinobeChar.CFrame * NewCFrame(9e9, 0/0, math.huge)
+            destroyCheaters.Finobe2 = FinobeChar.CFrame
+            FinobeChar.CFrame = Offset
+        end
+    end)
+    
+    -- RenderStepped для возврата (отдельное соединение для лучшей синхронизации)
+    local renderConn = Runfinobe.RenderStepped:Connect(function()
+        if not destroyCheaters.Enabled or not destroyCheaters.Active then return end
+        if LocalFinobe.Character and LocalFinobe.Character:FindFirstChild("HumanoidRootPart") and destroyCheaters.Finobe2 then
+            LocalFinobe.Character.HumanoidRootPart.CFrame = destroyCheaters.Finobe2
+        end
+    end)
+    
+    table.insert(destroyCheaters.Connections, heartbeatConn)
+    table.insert(destroyCheaters.Connections, renderConn)
+end
+
+-- Инициализация первого соединения (будет заменено при включении функции)
+setupDestroyCheaters()
 
 -- Хук для маскировки
 if not destroyCheaters.HookFunction then
@@ -955,21 +1134,8 @@ local destroyCheaterToggle = misc_sections.extras:toggle{
                 time = 3
             }
         else
-            -- Пересоздаем соединения
-            disconnectDestroyCheaters()
-            
-            local heartbeatConn = Runfinobe.Heartbeat:Connect(function()
-                if not destroyCheaters.Enabled or not destroyCheaters.Active then return end
-                if LocalFinobe.Character and LocalFinobe.Character:FindFirstChild("HumanoidRootPart") then
-                    local FinobeChar = LocalFinobe.Character.HumanoidRootPart
-                    local Offset = FinobeChar.CFrame * NewCFrame(9e9, 0/0, math.huge)
-                    destroyCheaters.Finobe2 = FinobeChar.CFrame
-                    FinobeChar.CFrame = Offset
-                    Runfinobe.RenderStepped:Wait()
-                    FinobeChar.CFrame = destroyCheaters.Finobe2
-                end
-            end)
-            table.insert(destroyCheaters.Connections, heartbeatConn)
+            -- Настраиваем соединения
+            setupDestroyCheaters()
             
             library:notification{
                 text = "Destroy Cheaters enabled",
@@ -1180,15 +1346,37 @@ game:GetService("Players").LocalPlayer.OnTeleport:Connect(function()
     
     -- Отключаем все функции
     antiAFK.Enabled = false
+    
+    -- Отключаем DisableShadows
     disableShadows.Enabled = false
     if disableShadows.Thread then
         task.cancel(disableShadows.Thread)
         disableShadows.Thread = nil
     end
     
+    -- Отключаем NoJumpCD и NoRecoil
     noJumpCD.Enabled = false
     noRecoil.Enabled = false
     
+    -- Отключаем SpeedHack
+    speedHack.Enabled = false
+    speedHack.Active = false
+    getgenv().cframespeedtoggle = false
+    disconnectSpeedHack()
+    
+    -- Отключаем AntiGround
+    antiGround.Enabled = false
+    getgenv().antigroundtoggle = false
+    if antiGround.Connection and antiGround.Connection.Connected then
+        antiGround.Connection:Disconnect()
+        antiGround.Connection = nil
+    end
+    if antiGround.CharConnection and antiGround.CharConnection.Connected then
+        antiGround.CharConnection:Disconnect()
+        antiGround.CharConnection = nil
+    end
+    
+    -- Отключаем AntiFling
     antiFling.Enabled = false
     for _, connection in pairs(antiFling.Connections) do
         if connection and connection.Connected then
@@ -1197,6 +1385,7 @@ game:GetService("Players").LocalPlayer.OnTeleport:Connect(function()
     end
     antiFling.Connections = {}
     
+    -- Отключаем Destroy Cheaters
     destroyCheaters.Enabled = false
     destroyCheaters.Active = false
     getgenv().Finobe1 = false
