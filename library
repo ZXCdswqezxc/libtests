@@ -576,7 +576,16 @@ end
                     end 
                 end)
 
-                library:apply_theme(TEXT_ANIMATION_GRADIENT, "accent", "Color")
+                -- Обновляем цвет градиента при изменении акцента
+                task.spawn(function()
+                    while true do
+                        TEXT_ANIMATION_GRADIENT.Color = ColorSequence.new{
+                            ColorSequenceKeypoint.new(0, themes.preset.accent),
+                            ColorSequenceKeypoint.new(1, themes.preset.accent)
+                        }
+                        task.wait(0.1)
+                    end
+                end)
             -- 
 
             -- window
