@@ -315,7 +315,7 @@ do
                 return tostring(instance):lower():find("camera") and tostring(index) == "CFrame"
             end
             if isframework(callingScr) and checkArgs(self, Index) then
-                return
+                return -- просто блокируем, не вызываем old_newindex!
             end
         end
         return old_newindex(self, Index, Value)
@@ -337,6 +337,184 @@ misc_sections.extras:toggle{
     default = false,
     callback = function(state)
         noRecoil.Enabled = state
+    end
+}
+
+-- AntiFling
+local antiFling = {
+    Enabled = false,
+    Connections = {},
+    LastPosition = nil,
+    Players = {}, -- Кэш для отслеживаемых игроков
+    CheckFrequency = 0.1 -- Проверять 10 раз в секунду вместо каждого кадра
+}
+
+-- Функция для создания уведомления
+local function showNotification(text, color)
+    library:notification{
+        text = text,
+        time = 3
+    }
+    -- Также отправляем в чат, если возможно
+    pcall(function()
+        game.StarterGui:SetCore("ChatMakeSystemMessage", {
+            Text = text,
+            Color = color or Color3.fromRGB(255, 200, 0)
+        })
+    end)
+end
+
+misc_sections.extras:toggle{
+    name = "Anti-Fling",
+    flag = "anti_fling",
+    default = false,
+    callback = function(state)
+        antiFling.Enabled = state
+        
+        if state then
+            -- Очищаем старые соединения, если они есть
+            for _, connection in pairs(antiFling.Connections) do
+                if connection and connection.Connected then
+                    connection:Disconnect()
+                end
+            end
+            antiFling.Connections = {}
+            antiFling.Players = {}
+            
+            -- Получаем сервисы (кэшируем один раз)
+            local Players = game:GetService("Players")
+            local RunService = game:GetService("RunService")
+            local LocalPlayer = Players.LocalPlayer
+            
+            -- Функция для добавления игрока в отслеживание
+            local function addPlayerToTracking(player)
+                if player == LocalPlayer then return end
+                
+                -- Создаем запись для игрока
+                antiFling.Players[player] = {
+                    Character = player.Character,
+                    PrimaryPart = player.Character and player.Character:FindFirstChild("HumanoidRootPart"),
+                    Detected = false
+                }
+                
+                -- Подключаемся к событию появления персонажа
+                local charConnection = player.CharacterAdded:Connect(function(newChar)
+                    if not antiFling.Enabled then return end
+                    
+                    -- Обновляем данные игрока
+                    antiFling.Players[player] = antiFling.Players[player] or {}
+                    antiFling.Players[player].Character = newChar
+                    antiFling.Players[player].Detected = false
+                    
+                    -- Ждем появления HumanoidRootPart
+                    task.spawn(function()
+                        local hrp = newChar:WaitForChild("HumanoidRootPart", 3)
+                        if hrp and antiFling.Enabled and antiFling.Players[player] then
+                            antiFling.Players[player].PrimaryPart = hrp
+                        end
+                    end)
+                end)
+                
+                table.insert(antiFling.Connections, charConnection)
+            end
+            
+            -- Добавляем существующих игроков
+            for _, player in ipairs(Players:GetPlayers()) do
+                if player ~= LocalPlayer then
+                    addPlayerToTracking(player)
+                end
+            end
+            
+            -- Подключаемся к новым игрокам
+            local playerAddedConnection = Players.PlayerAdded:Connect(function(player)
+                if not antiFling.Enabled then return end
+                addPlayerToTracking(player)
+            end)
+            
+            -- Обрабатываем удаление игроков
+            local playerRemovingConnection = Players.PlayerRemoving:Connect(function(player)
+                if antiFling.Players[player] then
+                    antiFling.Players[player] = nil
+                end
+            end)
+            
+            table.insert(antiFling.Connections, playerAddedConnection)
+            table.insert(antiFling.Connections, playerRemovingConnection)
+            
+            -- ОДИН Heartbeat для всех проверок с ограниченной частотой
+            local lastCheckTime = 0
+            local mainHeartbeatConnection = RunService.Heartbeat:Connect(function()
+                if not antiFling.Enabled then return end
+                
+                -- Ограничиваем частоту проверок
+                local currentTime = tick()
+                if currentTime - lastCheckTime < antiFling.CheckFrequency then
+                    return
+                end
+                lastCheckTime = currentTime
+                
+                -- 1. Проверяем других игроков на флинг
+                for player, data in pairs(antiFling.Players) do
+                    if player and player.Parent and data.Character and data.Character.Parent and data.PrimaryPart and data.PrimaryPart.Parent then
+                        -- Проверяем скорость
+                        if data.PrimaryPart.AssemblyAngularVelocity.Magnitude > 50 or data.PrimaryPart.AssemblyLinearVelocity.Magnitude > 100 then
+                            if not data.Detected then
+                                showNotification("Fling Exploit detected, Player: " .. tostring(player), Color3.fromRGB(255, 200, 0))
+                                data.Detected = true
+                            end
+                            
+                            -- Отключаем коллизии только для частей с высокой скоростью
+                            for _, part in ipairs(data.Character:GetDescendants()) do
+                                if part:IsA("BasePart") then
+                                    part.CanCollide = false
+                                    part.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+                                    part.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                                    part.CustomPhysicalProperties = PhysicalProperties.new(0, 0, 0)
+                                end
+                            end
+                        end
+                    end
+                end
+                
+                -- 2. Защита локального игрока (только если персонаж существует)
+                pcall(function()
+                    local character = LocalPlayer.Character
+                    if character and character.Parent then
+                        local primaryPart = character.PrimaryPart
+                        if primaryPart and primaryPart.Parent then
+                            if primaryPart.AssemblyLinearVelocity.Magnitude > 250 or primaryPart.AssemblyAngularVelocity.Magnitude > 250 then
+                                primaryPart.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+                                primaryPart.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                                
+                                if antiFling.LastPosition then
+                                    primaryPart.CFrame = antiFling.LastPosition
+                                end
+                                
+                                showNotification("Fling attempt detected! Neutralizing velocity.", Color3.fromRGB(255, 0, 0))
+                            elseif primaryPart.AssemblyLinearVelocity.Magnitude < 50 then
+                                antiFling.LastPosition = primaryPart.CFrame
+                            end
+                        end
+                    end
+                end)
+            end)
+            
+            table.insert(antiFling.Connections, mainHeartbeatConnection)
+            
+            showNotification("Anti-Fling enabled", Color3.fromRGB(0, 255, 0))
+        else
+            -- Отключаем все соединения
+            for _, connection in pairs(antiFling.Connections) do
+                if connection and connection.Connected then
+                    connection:Disconnect()
+                end
+            end
+            antiFling.Connections = {}
+            antiFling.Players = {}
+            antiFling.LastPosition = nil
+            
+            showNotification("Anti-Fling disabled", Color3.fromRGB(255, 0, 0))
+        end
     end
 }
 
