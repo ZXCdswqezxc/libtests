@@ -4787,4 +4787,99 @@ function library:config_manager(section)
     library:config_list_update()
 end
 
+function library:safe_textbox(properties)
+    properties = properties or {}
+    properties.callback = properties.callback or function() end
+    properties.flag = properties.flag or tostring(math.random(1000000, 9999999))
+    properties.placeholder = properties.placeholder or "type here..."
+    properties.default = properties.default or ""
+    properties.name = properties.name or nil
+    properties.clearonfocus = properties.clearonfocus or false
+
+    local cfg = {
+        placeholder = properties.placeholder,
+        default = properties.default,
+        clear_on_focus = properties.clearonfocus,
+        flag = properties.flag,
+        callback = properties.callback,
+        textbox = nil
+    }
+
+    local textbox_inline = library:create("Frame", {
+        Parent = self.holder,
+        Name = "",
+        Position = UDim2.new(0, -15, 0, 2),
+        BorderColor3 = Color3.fromRGB(19, 19, 19),
+        Size = UDim2.new(1, -26, 0, 16),
+        BorderSizePixel = 0,
+        BackgroundColor3 = Color3.fromRGB(8, 8, 8)
+    })
+    
+    local textbox = library:create("TextBox", {
+        Parent = textbox_inline,
+        Name = "",
+        FontFace = library.font,
+        TextColor3 = Color3.fromRGB(170, 170, 170),
+        BorderColor3 = Color3.fromRGB(56, 56, 56),
+        Text = "",
+        TextStrokeTransparency = 0.5,
+        Position = UDim2.new(0, 2, 0, 2),
+        Size = UDim2.new(1, -4, 1, -4),
+        ClearTextOnFocus = cfg.clear_on_focus, 
+        PlaceholderColor3 = Color3.fromRGB(90, 90, 90),
+        CursorPosition = -1,
+        PlaceholderText = cfg.placeholder,
+        TextSize = 12,
+        BackgroundColor3 = Color3.fromRGB(38, 38, 38)
+    })
+    
+    cfg.textbox = textbox
+    
+    -- Безопасный вызов callback
+    local function safe_callback(text)
+        pcall(function()
+            if cfg and type(cfg.callback) == "function" then
+                cfg.callback(text)
+            end
+        end)
+    end
+    
+    textbox:GetPropertyChangedSignal("Text"):Connect(function()
+        pcall(function()
+            if flags then
+                flags[cfg.flag] = textbox.Text
+            end
+            safe_callback(textbox.Text)
+        end)
+    end)
+
+    function cfg.set(text)
+        pcall(function() 
+            if flags then
+                flags[cfg.flag] = text
+            end
+            if textbox then
+                textbox.Text = text
+            end
+            safe_callback(text)
+        end)
+    end
+
+    -- Установка значения по умолчанию
+    pcall(function()
+        if cfg.default and cfg.default ~= "" then
+            cfg.set(cfg.default)
+        end
+    end)
+
+    -- Безопасная регистрация в library.config_flags
+    pcall(function()
+        if library and library.config_flags then
+            library.config_flags[cfg.flag] = cfg.set
+        end
+    end)
+
+    return setmetatable(cfg, library)
+end
+
 return library
