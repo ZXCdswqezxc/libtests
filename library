@@ -3238,151 +3238,11 @@ end
             -- 
 
             -- Animation Handling 
-                local content_inline = library:create("Frame", {
-                    Parent = library.gui,
-                    Name = "",
-                    BorderColor3 = Color3.fromRGB(19, 19, 19),
-                    Size = UDim2.new(0, 73, 0, 0),
-                    Position = dim2(0, icon_inline.AbsolutePosition.X + 20, 0, icon_inline.AbsolutePosition.Y),
-                    BorderSizePixel = 0,
-                    ZIndex = 2,
-                    Visible = false, 
-                    AutomaticSize = Enum.AutomaticSize.Y,
-                    BackgroundColor3 = Color3.fromRGB(8, 8, 8)
-                })
-
-                local content = library:create("Frame", {
-                    Parent = content_inline,
-                    Name = "",
-                    Position = UDim2.new(0, 2, 0, 2),
-                    BorderColor3 = Color3.fromRGB(56, 56, 56),
-                    Size = UDim2.new(1, -4, 1, -4),
-                    BackgroundColor3 = Color3.fromRGB(38, 38, 38)
-                })
-                
-                local options = library:create("Frame", {
-                    Parent = content,
-                    Name = "",
-                    BackgroundTransparency = 1,
-                    Position = UDim2.new(0, 2, 0, 2),
-                    BorderColor3 = Color3.fromRGB(0, 0, 0),
-                    Size = UDim2.new(1, -4, 1, -4),
-                    BorderSizePixel = 0,
-                    BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-                })
-                
-                local UIListLayout = library:create("UIListLayout", {
-                    Parent = options,
-                    Name = "",
-                    Padding = UDim.new(0, 2),
-                    SortOrder = Enum.SortOrder.LayoutOrder
-                })
-                
-                local normal = library:create("TextButton", {
-                    Parent = options,
-                    Name = "",
-                    FontFace = library.font,
-                    TextColor3 = Color3.fromRGB(170, 170, 170),
-                    BorderColor3 = Color3.fromRGB(56, 56, 56),
-                    Text = "normal",
-                    TextStrokeTransparency = 0.5,
-                    Size = UDim2.new(1, 0, 0, 12),
-                    TextXAlignment = Enum.TextXAlignment.Left,
-                    Position = UDim2.new(0, 2, 0, 2),
-                    BorderSizePixel = 0,
-                    TextSize = 12,
-                    BackgroundColor3 = Color3.fromRGB(65, 65, 65)
-                })
-                
-                local UIPadding = library:create("UIPadding", {
-                    Parent = normal,
-                    Name = "",
-                    PaddingBottom = UDim.new(0, 1),
-                    PaddingLeft = UDim.new(0, 5)
-                })
-                
-                local rainbow = library:create("TextButton", {
-                    Parent = options,
-                    Name = "",
-                    FontFace = library.font,
-                    TextColor3 = Color3.fromRGB(170, 170, 170),
-                    BorderColor3 = Color3.fromRGB(56, 56, 56),
-                    Text = "rainbow",
-                    TextStrokeTransparency = 0.5,
-                    Size = UDim2.new(1, 0, 0, 12),
-                    BackgroundTransparency = 1,
-                    TextXAlignment = Enum.TextXAlignment.Left,
-                    Position = UDim2.new(0, 2, 0, 2),
-                    BorderSizePixel = 0,
-                    TextSize = 12,
-                    BackgroundColor3 = Color3.fromRGB(65, 65, 65)
-                })
-                
-                local UIPadding = library:create("UIPadding", {
-                    Parent = rainbow,
-                    Name = "",
-                    PaddingBottom = UDim.new(0, 1),
-                    PaddingLeft = UDim.new(0, 5)
-                })
-                
-                local fade = library:create("TextButton", {
-                    Parent = options,
-                    Name = "",
-                    FontFace = library.font,
-                    TextColor3 = Color3.fromRGB(170, 170, 170),
-                    BorderColor3 = Color3.fromRGB(56, 56, 56),
-                    Text = "fade",
-                    TextStrokeTransparency = 0.5,
-                    Size = UDim2.new(1, 0, 0, 12),
-                    BackgroundTransparency = 1,
-                    TextXAlignment = Enum.TextXAlignment.Left,
-                    Position = UDim2.new(0, 2, 0, 2),
-                    BorderSizePixel = 0,
-                    TextSize = 12,
-                    BackgroundColor3 = Color3.fromRGB(65, 65, 65)
-                })
-                
-                local UIPadding = library:create("UIPadding", {
-                    Parent = fade,
-                    Name = "",
-                    PaddingBottom = UDim.new(0, 1),
-                    PaddingLeft = UDim.new(0, 5)
-                })
-                
-                local UIPadding = library:create("UIPadding", {
-                    Parent = options,
-                    Name = "",
-                    PaddingBottom = UDim.new(0, 4)
-                })
-                
-                local fade_alpha = library:create("TextButton", {
-                    Parent = options,
-                    Name = "",
-                    FontFace = library.font,
-                    TextColor3 = Color3.fromRGB(170, 170, 170),
-                    BorderColor3 = Color3.fromRGB(56, 56, 56),
-                    Text = "fade alpha",
-                    TextStrokeTransparency = 0.5,
-                    Size = UDim2.new(1, 0, 0, 12),
-                    BackgroundTransparency = 1,
-                    TextXAlignment = Enum.TextXAlignment.Left,
-                    Position = UDim2.new(0, 2, 0, 2),
-                    BorderSizePixel = 0,
-                    TextSize = 12,
-                    BackgroundColor3 = Color3.fromRGB(65, 65, 65)
-                })
-                
-                local UIPadding = library:create("UIPadding", {
-                    Parent = fade_alpha,
-                    Name = "",
-                    PaddingBottom = UDim.new(0, 1),
-                    PaddingLeft = UDim.new(0, 5)
-                })            
+                -- Удаляю весь блок Animation Handling
             -- 
 
             function cfg.set_visible(bool)
                 picker_inline.Visible = bool
-                content_inline.Visible = false
                 
                 if bool then    
                     if library.current_element_open and library.current_element_open ~= cfg then 
@@ -3394,25 +3254,22 @@ end
                 end
 
                 picker_inline.Position = dim2(0, icon_inline.AbsolutePosition.X + 1, 0, icon_inline.AbsolutePosition.Y + 17)
-                content_inline.Position = dim2(0, icon_inline.AbsolutePosition.X + 20, 0, icon_inline.AbsolutePosition.Y)
             end 
 
             icon_inline.MouseButton1Click:Connect(function()		
                 cfg.open = not cfg.open
-
                 cfg.set_visible(cfg.open) 
             end)
 
             icon_inline.MouseButton2Click:Connect(function()
-                if cfg.open then 
-                    cfg.open = false 
+                -- Отключаю правый клик для выбора режима
+                if not cfg.open then
+                    cfg.open = true
+                    cfg.set_visible(true)
+                else
+                    cfg.open = false
                     cfg.set_visible(false)
-                end 
-
-                content_inline.Visible = not content_inline.Visible
-
-                picker_inline.Position = dim2(0, icon_inline.AbsolutePosition.X + 1, 0, icon_inline.AbsolutePosition.Y + 17)
-                content_inline.Position = dim2(0, icon_inline.AbsolutePosition.X + 20, 0, icon_inline.AbsolutePosition.Y)
+                end
             end)
 
             function cfg.set(color, alpha)
@@ -3510,44 +3367,6 @@ end
             end)
 
             cfg.saved_color = hsv(h, s, v)
-            local selected = normal
-            flags[cfg.flag]["animation"] = "normal"
-
-            rainbow.MouseButton1Down:Connect(function()
-                selected.BackgroundTransparency = 1; 
-                selected = "rainbow" 
-                rainbow.BackgroundTransparency = 0 
-
-                flags[cfg.flag]["animation"] = "rainbow"
-                cfg.saved_color = hsv(s,s,v)
-            end)
-
-            fade_alpha.MouseButton1Down:Connect(function()
-                selected.BackgroundTransparency = 1; 
-                selected = "fade_alpha" 
-                fade_alpha.BackgroundTransparency = 0 
-
-                flags[cfg.flag]["animation"] = "fade_alpha"
-                cfg.saved_color = hsv(s,s,v)
-            end)
-
-            fade.MouseButton1Down:Connect(function()
-                selected.BackgroundTransparency = 1; 
-                selected = "fade" 
-                fade.BackgroundTransparency = 0 
-
-                flags[cfg.flag]["animation"] = "fade"
-                cfg.saved_color = hsv(s,s,v)
-            end)
-
-            normal.MouseButton1Down:Connect(function()
-                selected.BackgroundTransparency = 1; 
-                selected = "normal" 
-                normal.BackgroundTransparency = 0 
-
-                flags[cfg.flag]["animation"] = "normal"
-                cfg.set(cfg.saved_color)
-            end)
 
             uis.InputEnded:Connect(function(input)
                 if input.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -3568,22 +3387,6 @@ end
             self.previous_holder = parent
 
             library.config_flags[cfg.flag] = cfg.set
-
-            task.spawn(function()
-                while true do 
-                    if selected ~= "normal" then 
-                        cfg.set(
-                            hsv(
-                                selected == "rainbow" and library.sin or h, 
-                                selected == "rainbow" and 1 or s, 
-                                selected == "fade" and library.sin or v
-                            )
-                            , selected == "fade_alpha" and library.sin
-                        )
-                    end 
-                    task.wait() 
-                end     
-            end)    
             
             return setmetatable(cfg, library)  
         end     
