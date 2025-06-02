@@ -4995,6 +4995,68 @@ end
             end     
         end 
     -- 
--- 
+
+-- Добавляю универсальный конфиг-менеджер
+function library:config_manager(section)
+    -- TextBox для имени конфига
+    local config_name_box = section:textbox{
+        name = "Config Name",
+        flag = "config_name",
+        placeholder = "Введите имя конфига...",
+        default = ""
+    }
+    -- Dropdown для списка конфигов
+    local configManager = section:dropdown{
+        name = "Config Manager",
+        flag = "config_list",
+        items = {},
+        callback = function() end
+    }
+    library.config_holder = configManager -- для update
+    -- Кнопка Save
+    section:button{
+        name = "Save Config",
+        callback = function()
+            local name = library.flags.config_name
+            if not name or name == "" then
+                library:notification{text = "Введите имя конфига!"}
+                return
+            end
+            writefile(library.directory.."/configs/"..name..".cfg", library:get_config())
+            library:notification{text = "Config saved: "..name}
+            library:config_list_update()
+        end
+    }
+    -- Кнопка Load
+    section:button{
+        name = "Load Config",
+        callback = function()
+            local name = library.flags.config_list
+            if name and isfile(library.directory.."/configs/"..name..".cfg") then
+                local data = readfile(library.directory.."/configs/"..name..".cfg")
+                library:load_config(data)
+                library:notification{text = "Config loaded: "..name}
+            else
+                library:notification{text = "Выберите конфиг!"}
+            end
+            library:config_list_update()
+        end
+    }
+    -- Кнопка Delete
+    section:button{
+        name = "Delete Config",
+        callback = function()
+            local name = library.flags.config_list
+            if name and isfile(library.directory.."/configs/"..name..".cfg") then
+                delfile(library.directory.."/configs/"..name..".cfg")
+                library:notification{text = "Config deleted: "..name}
+                library:config_list_update()
+            else
+                library:notification{text = "Выберите конфиг!"}
+            end
+        end
+    }
+    library:config_list_update()
+end
 
 return library
