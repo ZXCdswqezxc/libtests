@@ -1,159 +1,387 @@
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
-local TextService = game:GetService("TextService")
-
-local player = Players.LocalPlayer
-local playerGui = player:WaitForChild("PlayerGui")
-
--- Create ScreenGui
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Parent = playerGui
-ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-
--- Watermark
-local watermark = Instance.new("Frame")
-watermark.Name = "watermark"
-watermark.Parent = ScreenGui
-watermark.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-watermark.BorderColor3 = Color3.fromRGB(20, 20, 20)
-watermark.BorderSizePixel = 0
-watermark.Position = UDim2.new(0.459283382, 0, 0.524570048, 0) -- Default position
-watermark.Size = UDim2.new(0, 120, 0, 20)
-
-local stroke = Instance.new("UIStroke")
-stroke.Name = "stroke"
-stroke.Parent = watermark
-stroke.Color = Color3.fromRGB(255, 0, 0)
-stroke.Thickness = 2
-stroke.Transparency = 0.3
-
-local uiGradient = Instance.new("UIGradient")
-uiGradient.Name = "uiGradient"
-uiGradient.Parent = stroke
-uiGradient.Color = ColorSequence.new({
-    ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 0, 0)),
-    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 100, 100)),
-    ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 0, 0))
-})
-uiGradient.Rotation = 45
-
-local WmText = Instance.new("TextLabel")
-WmText.Name = "WmText"
-WmText.Parent = watermark
-WmText.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-WmText.BackgroundTransparency = 1
-WmText.BorderColor3 = Color3.fromRGB(0, 0, 0)
-WmText.BorderSizePixel = 0
-WmText.Size = UDim2.new(1, 0, 1, 0)
-WmText.Font = Enum.Font.Sarpanch
-WmText.TextColor3 = Color3.fromRGB(255, 255, 255)
-WmText.TextSize = 16
-WmText.Text = ""
-
--- Preset positions
-local presets = {
-    TopLeft = UDim2.new(0, 10, 0, 10), -- 10px padding from top-left
-    TopRight = UDim2.new(1, -130, 0, 10), -- 10px from top, 130px from right (accounting for width)
-    TopCenter = UDim2.new(0.5, -60, 0, 10) -- Centered horizontally, 10px from top
+-- Silent Aim Configuration
+local SilentAimConfig = {
+	Enabled = true, -- Master switch
+	Keybind = Enum.KeyCode.Q, -- Key to select or deselect target
+	AimPart = "HumanoidRootPart", -- Default aim part
+	MultipleParts = {
+		Enabled = false,
+		Parts = { "Head", "UpperTorso", "HumanoidRootPart", "LowerTorso" }
+	},
+	Prediction = {
+		Enabled = true,
+		Type = "Juju", -- Resolver modes: Vel, MoveDir, CFrame, Juju
+		PredictionXZ = 0.1443376, -- Horizontal prediction factor (for non-Juju resolvers)
+		PredictionY = 0.1443376, -- Vertical prediction factor (for non-Juju resolvers)
+		Juju = {
+			ResolverRefresh = 10, -- Refresh rate in milliseconds for Juju resolver (more frequent updates)
+			PredictionFactor = 0.1443376 -- Scaling factor for Juju predicted velocity
+		}
+	},
+	Offsets = {
+		Jump = 0.4, -- Y offset for jumping targets
+		Fall = 0  -- Y offset for falling targets
+	},
+	Checks = {
+		WallCheck = false, -- Check for obstructions
+		TargetDeath = false, -- Stop aiming if target dies
+		ResetTargetOnLocalDeath = false -- Reset target when local player dies
+	}
 }
 
-local currentPreset = "TopRight" -- Default preset
+-- Services
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
 
--- Function to apply preset position
-local function setWatermarkPreset(presetName)
-    if presets[presetName] then
-        watermark.Position = presets[presetName]
-        currentPreset = presetName
-    end
+-- Optimization Variables
+local LocalPlayer = Players.LocalPlayer
+local Camera = Workspace.CurrentCamera
+local BotsFolder = Workspace:FindFirstChild("Bots") or Instance.new("Folder", Workspace)
+local Inf = math.huge
+
+-- State Variables
+local selectedTarget = nil -- Currently selected target (player or bot)
+local lastPosition = nil -- For resolver calculations
+local lastUpdateTime = nil -- For resolver timing
+local predictedPosition = nil -- Predicted target position
+local jujuState = { -- Juju resolver state
+	target = nil,
+	last_position = nil,
+	last_refresh = tick(),
+	target_velocity = Vector3.zero
+}
+
+-- Entity state table (players and bots)
+local entityStates = {} -- Tracks isTarget for each entity (player or bot)
+
+-- Prevent multiple executions
+if getgenv().Loaded then
+	return
+end
+getgenv().Loaded = true
+
+-- Initialize entity states
+local function initEntityStates()
+	-- Initialize players
+	for _, player in ipairs(Players:GetPlayers()) do
+		if player ~= LocalPlayer then
+			entityStates[player] = { isTarget = false }
+		end
+	end
+	Players.PlayerAdded:Connect(function(player)
+		if player ~= LocalPlayer then
+			entityStates[player] = { isTarget = false }
+		end
+	end)
+	Players.PlayerRemoving:Connect(function(player)
+		if entityStates[player] and entityStates[player].isTarget and SilentAimConfig.Checks.TargetDeath then
+			selectedTarget = nil
+			jujuState.target = nil
+			jujuState.last_position = nil
+			jujuState.target_velocity = Vector3.zero
+		end
+		entityStates[player] = nil
+	end)
+
+	-- Initialize bots
+	for _, bot in ipairs(BotsFolder:GetChildren()) do
+		if bot:IsA("Model") and bot:FindFirstChild("HumanoidRootPart") then
+			entityStates[bot] = { isTarget = false }
+		end
+	end
+	BotsFolder.ChildAdded:Connect(function(bot)
+		if bot:IsA("Model") and bot:FindFirstChild("HumanoidRootPart") then
+			entityStates[bot] = { isTarget = false }
+		end
+	end)
+	BotsFolder.ChildRemoved:Connect(function(bot)
+		if entityStates[bot] and entityStates[bot].isTarget and SilentAimConfig.Checks.TargetDeath then
+			selectedTarget = nil
+			jujuState.target = nil
+			jujuState.last_position = nil
+			jujuState.target_velocity = Vector3.zero
+		end
+		entityStates[bot] = nil
+	end)
 end
 
--- Function to cycle through presets (for keybind)
-local function cyclePresets()
-    local presetOrder = {"TopLeft", "TopRight", "TopCenter"}
-    local currentIndex = table.find(presetOrder, currentPreset) or 1
-    local nextIndex = (currentIndex % #presetOrder) + 1
-    setWatermarkPreset(presetOrder[nextIndex])
+-- Check if entity (player or bot) is alive
+local function isEntityAlive(entity)
+	local character = entity:IsA("Player") and entity.Character or entity
+	return character and character:FindFirstChild("Humanoid") and character.Humanoid.Health > 0
 end
 
--- Function to calculate text bounds and scale frame
-local function scaleFrameToText(frame, textLabel)
-    local text = textLabel.Text
-    local font = textLabel.Font
-    local textSize = textLabel.TextSize
-    local textBounds = TextService:GetTextSize(text, textSize, font, Vector2.new(math.huge, math.huge))
-    
-    -- Add padding (10 pixels on X, 5 pixels on Y)
-    local newWidth = textBounds.X + 10
-    local newHeight = textBounds.Y + 5
-    
-    frame.Size = UDim2.new(0, newWidth, 0, newHeight)
+-- Wall check to ensure no obstructions
+local function wallCheck(entity)
+	if not SilentAimConfig.Checks.WallCheck then
+		return true
+	end
+	local character = entity:IsA("Player") and entity.Character or entity
+	if not character or not character:FindFirstChild("HumanoidRootPart") then
+		return false
+	end
+	local targetPosition = character.HumanoidRootPart.Position
+	local cameraPosition = Camera.CFrame.Position
+	local direction = (targetPosition - cameraPosition).Unit
+	local distance = (targetPosition - cameraPosition).Magnitude
+	local ray = Ray.new(cameraPosition, direction * distance)
+	local hitPart, hitPosition = Workspace:FindPartOnRayWithIgnoreList(ray, { LocalPlayer.Character, character })
+	return hitPart == nil or (hitPosition - cameraPosition).Magnitude >= distance
 end
 
--- Dragging functionality
-local function makeDraggable(frame)
-    local dragging = false
-    local dragInput, dragStart, startPos
-
-    frame.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            dragging = true
-            dragStart = input.Position
-            startPos = frame.Position
-            currentPreset = nil -- Disable preset when dragging
-
-            local connection
-            connection = input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    dragging = false
-                    connection:Disconnect()
-                end
-            end)
-        end
-    end)
-
-    UserInputService.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement and dragging then
-            local delta = input.Position - dragStart
-            frame.Position = UDim2.new(
-                startPos.X.Scale,
-                startPos.X.Offset + delta.X,
-                startPos.Y.Scale,
-                startPos.Y.Offset + delta.Y
-            )
-        end
-    end)
+-- Get closest part to cursor from multiple parts
+local function getClosestPart(entity)
+	local character = entity:IsA("Player") and entity.Character or entity
+	if not character then
+		return nil
+	end
+	if not SilentAimConfig.MultipleParts.Enabled then
+		return character:FindFirstChild(SilentAimConfig.AimPart)
+	end
+	local shortestDistance = Inf
+	local closestPart = nil
+	local mousePosition = UserInputService:GetMouseLocation()
+	
+	for _, partName in ipairs(SilentAimConfig.MultipleParts.Parts) do
+		local part = character:FindFirstChild(partName)
+		if part and part:IsA("BasePart") then
+			local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
+			if onScreen then
+				local distance = (Vector2.new(screenPos.X, screenPos.Y) - mousePosition).Magnitude
+				if distance < shortestDistance then
+					closestPart = part
+					shortestDistance = distance
+				end
+			end
+		end
+	end
+	return closestPart or character:FindFirstChild(SilentAimConfig.AimPart)
 end
 
-makeDraggable(watermark)
+-- Get closest entity (player or bot) to cursor
+local function getClosestEntityToCursor()
+	local shortestDistance = Inf
+	local closestEntity = nil
+	local mousePosition = UserInputService:GetMouseLocation()
+	
+	-- Check players
+	for _, player in ipairs(Players:GetPlayers()) do
+		if player ~= LocalPlayer and player.Character and isEntityAlive(player) and wallCheck(player) then
+			local part = player.Character:FindFirstChild(SilentAimConfig.AimPart)
+			if part then
+				local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
+				if onScreen then
+					local distance = (Vector2.new(screenPos.X, screenPos.Y) - mousePosition).Magnitude
+					if distance < shortestDistance then
+						closestEntity = player
+						shortestDistance = distance
+					end
+				end
+			end
+		end
+	end
 
--- Keybind to cycle presets (e.g., press 'P' to cycle)
-UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
-    if not gameProcessedEvent and input.KeyCode == Enum.KeyCode.P then
-        cyclePresets()
-    end
-end)
-
--- FPS calculation (updated every 3 seconds)
-local lastFpsUpdate = 0
-local fps = 0
-local function calculateFps()
-    local currentTime = tick()
-    if currentTime - lastFpsUpdate >= 3 then
-        fps = math.floor(1 / RunService.RenderStepped:Wait())
-        lastFpsUpdate = currentTime
-    end
+	-- Check bots
+	for _, bot in ipairs(BotsFolder:GetChildren()) do
+		if bot:IsA("Model") and isEntityAlive(bot) and wallCheck(bot) then
+			local part = bot:FindFirstChild(SilentAimConfig.AimPart)
+			if part then
+				local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
+				if onScreen then
+					local distance = (Vector2.new(screenPos.X, screenPos.Y) - mousePosition).Magnitude
+					if distance < shortestDistance then
+						closestEntity = bot
+						shortestDistance = distance
+					end
+				end
+			end
+		end
+	end
+	
+	return closestEntity
 end
 
--- Update watermark (FPS, date, username)
-local function updateWatermark()
-    calculateFps()
-    local date = os.date("%Y-%m-%d %H:%M:%S")
-    WmText.Text = string.format("replace.gg | FPS: %d | %s | %s", fps, date, player.Name)
-    scaleFrameToText(watermark, WmText)
+-- Juju Resolver
+local function jujuResolver(targetEntity)
+	local character = targetEntity:IsA("Player") and targetEntity.Character or targetEntity
+	if not character or not character:FindFirstChild(SilentAimConfig.AimPart) then
+		return nil
+	end
+	
+	local aimPart = character[SilentAimConfig.AimPart]
+	local currentTime = tick()
+	local deltaTime = currentTime - jujuState.last_refresh
+	
+	if deltaTime > SilentAimConfig.Prediction.Juju.ResolverRefresh / 1000 then
+		if not jujuState.last_position then
+			jujuState.last_position = aimPart.Position
+		else
+			jujuState.target_velocity = (aimPart.Position - jujuState.last_position) / deltaTime
+			jujuState.last_position = aimPart.Position
+		end
+		jujuState.last_refresh = currentTime
+	end
+	
+	return aimPart.Position + (jujuState.target_velocity * SilentAimConfig.Prediction.Juju.PredictionFactor)
 end
 
--- Update loop
-RunService.RenderStepped:Connect(function()
-    updateWatermark()
-end)
+-- Predict target position
+local function getPredictedPosition(targetEntity)
+	local character = targetEntity:IsA("Player") and targetEntity.Character or targetEntity
+	if not character or not character:FindFirstChild(SilentAimConfig.AimPart) then
+		return nil
+	end
+	
+	local aimPartPos = character[SilentAimConfig.AimPart].Position
+	
+	if not SilentAimConfig.Prediction.Enabled then
+		return aimPartPos
+	end
+	
+	if SilentAimConfig.Prediction.Type == "Juju" then
+		jujuState.target = targetEntity
+		return jujuResolver(targetEntity)
+	end
+	
+	if not lastPosition or not lastUpdateTime then
+		lastPosition = aimPartPos
+		lastUpdateTime = tick()
+		predictedPosition = aimPartPos
+		return predictedPosition
+	end
+	
+	local currentTime = tick()
+	local deltaTime = currentTime - lastUpdateTime
+	local predictionType = SilentAimConfig.Prediction.Type
+	
+	if predictionType == "Vel" then
+		local velocity = character[SilentAimConfig.AimPart].Velocity
+		predictedPosition = aimPartPos + Vector3.new(
+			velocity.X * SilentAimConfig.Prediction.PredictionXZ,
+			velocity.Y * SilentAimConfig.Prediction.PredictionY,
+			velocity.Z * SilentAimConfig.Prediction.PredictionXZ
+		)
+	elseif predictionType == "MoveDir" then
+		local humanoid = character:FindFirstChildOfClass("Humanoid")
+		predictedPosition = aimPartPos + (humanoid and humanoid.MoveDirection * (SilentAimConfig.Prediction.PredictionXZ * 10) or Vector3.zero)
+	elseif predictionType == "CFrame" then
+		if (aimPartPos - lastPosition).Magnitude < 0.001 then
+			predictedPosition = aimPartPos
+		else
+			local distance = (aimPartPos - lastPosition).Magnitude
+			local predictedDistance = (distance / deltaTime) * (0.1 * (SilentAimConfig.Prediction.PredictionXZ * 10))
+			predictedPosition = aimPartPos + (aimPartPos - lastPosition).Unit * predictedDistance
+			local yChange = (aimPartPos.Y - lastPosition.Y) / deltaTime * (0.1 * SilentAimConfig.Prediction.PredictionY)
+			predictedPosition = predictedPosition + Vector3.new(0, yChange, 0)
+		end
+	end
+	
+	lastUpdateTime = currentTime
+	lastPosition = aimPartPos
+	return predictedPosition
+end
+
+-- Aiming logic with metatable hook
+local function setupAimbot()
+	local mt = getrawmetatable(game)
+	local oldIndex = mt.__index
+	setreadonly(mt, false)
+	
+	mt.__index = function(self, key)
+		if not checkcaller() and self == LocalPlayer:GetMouse() and SilentAimConfig.Enabled and (key == "Hit" or key == "Target") then
+			if selectedTarget and entityStates[selectedTarget] and entityStates[selectedTarget].isTarget then
+				local character = selectedTarget:IsA("Player") and selectedTarget.Character or selectedTarget
+				if character and isEntityAlive(selectedTarget) then
+					if SilentAimConfig.Checks.TargetDeath and character:FindFirstChild("Humanoid").Health <= 0 then
+						entityStates[selectedTarget].isTarget = false
+						selectedTarget = nil
+						jujuState.target = nil
+						jujuState.last_position = nil
+						jujuState.target_velocity = Vector3.zero
+						return oldIndex(self, key)
+					end
+					
+					local targetPart = getClosestPart(selectedTarget)
+					if targetPart then
+						local finalPosition = SilentAimConfig.Prediction.Enabled and getPredictedPosition(selectedTarget) or targetPart.Position
+						if finalPosition then
+							local humanoid = character:FindFirstChildOfClass("Humanoid")
+							if humanoid then
+								if humanoid:GetState() == Enum.HumanoidStateType.Jumping then
+									finalPosition = finalPosition + Vector3.new(0, SilentAimConfig.Offsets.Jump, 0)
+								elseif humanoid:GetState() == Enum.HumanoidStateType.Freefall then
+									finalPosition = finalPosition + Vector3.new(0, SilentAimConfig.Offsets.Fall, 0)
+								end
+							end
+							return key == "Hit" and CFrame.new(finalPosition) or targetPart
+						end
+					end
+				end
+			end
+		end
+		return oldIndex(self, key)
+	end
+	
+	setreadonly(mt, true)
+end
+
+-- Handle keybind for target selection
+local function setupKeybind()
+	UserInputService.InputBegan:Connect(function(input, gameProcessed)
+		if gameProcessed then return end
+		if input.KeyCode == SilentAimConfig.Keybind then
+			if selectedTarget and entityStates[selectedTarget].isTarget then
+				-- Deselect current target
+				entityStates[selectedTarget].isTarget = false
+				selectedTarget = nil
+				jujuState.target = nil
+				jujuState.last_position = nil
+				jujuState.target_velocity = Vector3.zero
+			else
+				-- Select new target
+				local closestEntity = getClosestEntityToCursor()
+				if closestEntity then
+					selectedTarget = closestEntity
+					entityStates[selectedTarget].isTarget = true
+					if SilentAimConfig.Prediction.Type == "Juju" then
+						jujuState.target = selectedTarget
+					end
+				end
+			end
+		end
+	end)
+end
+
+-- Fix tools on character spawn/respawn
+local function fixTool(character)
+	if character then
+		for _, tool in ipairs(character:GetChildren()) do
+			if tool:IsA("Tool") then
+				tool.Parent = LocalPlayer:FindFirstChildOfClass("Backpack")
+				break
+			end
+		end
+	end
+end
+
+-- Handle character spawn/respawn
+local function setupCharacterHandling()
+	fixTool(LocalPlayer.Character)
+	LocalPlayer.CharacterAdded:Connect(function(character)
+		fixTool(character)
+		if selectedTarget and SilentAimConfig.Checks.ResetTargetOnLocalDeath then
+			entityStates[selectedTarget].isTarget = false
+			selectedTarget = nil
+			jujuState.target = nil
+			jujuState.last_position = nil
+			jujuState.target_velocity = Vector3.zero
+		end
+	end)
+end
+
+-- Initialize aimbot
+initEntityStates()
+setupAimbot()
+setupKeybind()
+setupCharacterHandling()
