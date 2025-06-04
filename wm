@@ -1651,13 +1651,8 @@ local function setupBulletTPMetatable()
                 if character then
                     local targetPart = character:FindFirstChild(SilentAimConfig.AimPart)
                     if targetPart then
-                        -- Получаем позицию с учетом предсказания
-                        local targetPosition
-                        if SilentAimConfig.Prediction.Enabled then
-                            targetPosition = getPredictedPosition(selectedTarget)
-                        else
-                            targetPosition = targetPart.Position
-                        end
+                        -- Используем то же предсказание, что и в аимботе
+                        local targetPosition = SilentAimConfig.Prediction.Enabled and getPredictedPosition(selectedTarget) or targetPart.Position
                         
                         if targetPosition then
                             -- Добавляем смещения для прыжка/падения
@@ -1992,12 +1987,170 @@ local function updateTargetStrafe(deltaTime)
     humanoidRootPart.CFrame = CFrame.new(newPos, Vector3.new(targetPos.X, newPos.Y, targetPos.Z))
 end
 
+-- AutoFire и AutoReload конфигурация
+local GunFeaturesConfig = {
+    AutoReload = {
+        Enabled = false
+    },
+    Connections = {}
+}
+
+-- Добавляем группу для функций оружия
+local GunFeaturesGroup = Tabs.Combat:AddLeftGroupbox("Gun Features")
+
+-- AutoReload toggle
+local AutoReloadToggle = GunFeaturesGroup:AddToggle("AutoReloadEnabled", {
+    Text = "Auto Reload",
+    Default = false,
+    Tooltip = "Автоматически перезаряжает оружие когда кончаются патроны",
+    Callback = function(Value)
+        GunFeaturesConfig.AutoReload.Enabled = Value
+        
+        -- Если оружие уже экипировано, начинаем отслеживать
+        local character = LocalPlayer.Character
+        if character and Value then
+            local tool = character:FindFirstChildOfClass("Tool")
+            if tool then
+                trackWeapon(tool)
+            end
+        end
+        
+        Library:Notify("Auto Reload " .. (Value and "enabled" or "disabled"), 1.5)
+    end
+})
+
+-- Функции для AutoFire и AutoReload
+-- Функция для уменьшения задержек
+local function reduceCooldowns(tool)
+    if tool and getconnections then
+        for _, connection in ipairs(getconnections(tool.Activated)) do
+            local func = connection.Function
+            if func then
+                local funcInfo = debug.getinfo(func)
+                for i = 1, funcInfo.nups do
+                    local c, n = debug.getupvalue(func, i)
+                    if type(c) == "number" then
+                        debug.setupvalue(func, i, 0.01)
+                    end
+                end
+            end
+        end
+    end
+end
+
+-- Функция имитации клика по центру экрана
+local function simulateMouseClick()
+    local screenSize = Camera.ViewportSize
+    local centerX, centerY = screenSize.X / 2, screenSize.Y / 2
+    local VirtualUser = game:GetService("VirtualUser")
+    VirtualUser:ClickButton1(Vector2.new(centerX, centerY))
+end
+
+-- Функция активации инструмента
+local function activateTool()
+    local tool = GunFeaturesConfig.AutoFire.CurrentTool
+    if tool and tool.Parent == LocalPlayer.Character then
+        reduceCooldowns(tool)
+        if tool.Activate then
+            tool:Activate()
+        end
+    end
+end
+
+-- Функция отслеживания оружия (перезарядка)
+function trackWeapon(tool)
+    if not tool or not tool:IsA("Tool") then return end
+    
+    local ammoValue = tool:FindFirstChild("Ammo")
+    if not ammoValue or not ammoValue:IsA("IntValue") then return end
+    
+    -- Очищаем предыдущие соединения
+    if GunFeaturesConfig.Connections[tool] then
+        for _, conn in pairs(GunFeaturesConfig.Connections[tool]) do
+            conn:Disconnect()
+        end
+    end
+    
+    GunFeaturesConfig.Connections[tool] = {}
+    
+    -- Отслеживаем изменение патронов
+    local ammoConnection = ammoValue.Changed:Connect(function(newAmmo)
+        if GunFeaturesConfig.AutoReload.Enabled and newAmmo <= 0 then
+            -- Вызываем перезарядку
+            ReplicatedStorage.MainEvent:FireServer("Reload", tool.Name)
+        end
+    end)
+    
+    -- Отслеживаем снятие оружия
+    local unequipConnection = tool.Unequipped:Connect(function()
+        if GunFeaturesConfig.Connections[tool] then
+            for _, conn in pairs(GunFeaturesConfig.Connections[tool]) do
+                conn:Disconnect()
+            end
+            GunFeaturesConfig.Connections[tool] = nil
+        end
+    end)
+    
+    GunFeaturesConfig.Connections[tool] = {
+        ammo = ammoConnection,
+        unequip = unequipConnection
+    }
+end
+
+-- Обработчики событий для оружия
+local function setupGunFeatureEvents()
+    -- Отслеживание экипировки оружия
+    LocalPlayer.Character.ChildAdded:Connect(function(child)
+        if child:IsA("Tool") then
+            if GunFeaturesConfig.AutoReload.Enabled then
+                trackWeapon(child)
+            end
+        end
+    end)
+    
+    -- Отслеживание нового персонажа (респавн)
+    LocalPlayer.CharacterAdded:Connect(function(newCharacter)
+        -- Проверяем, есть ли уже экипированное оружие после респавна
+        task.spawn(function()
+            task.wait(0.5) -- Даем время на экипировку оружия после респавна
+            local equippedTool = newCharacter:FindFirstChildOfClass("Tool")
+            
+            if equippedTool and GunFeaturesConfig.AutoReload.Enabled then
+                trackWeapon(equippedTool)
+            end
+        end)
+    end)
+    
+    -- Проверка существующих инструментов
+    for _, tool in pairs(LocalPlayer.Backpack:GetChildren()) do
+        if tool:IsA("Tool") then
+            tool.Equipped:Connect(function()
+                if GunFeaturesConfig.AutoReload.Enabled then
+                    trackWeapon(tool)
+                end
+            end)
+        end
+    end
+    
+    -- Отслеживание новых инструментов
+    LocalPlayer.Backpack.ChildAdded:Connect(function(tool)
+        if tool:IsA("Tool") then
+            tool.Equipped:Connect(function()
+                if GunFeaturesConfig.AutoReload.Enabled then
+                    trackWeapon(tool)
+                end
+            end)
+        end
+    end)
+end
+
 -- Initialize aimbot
 initEntityStates()
 setupAimbot()
 setupKeybind()
 setupCharacterHandling()
-setupBulletTP() -- Инициализируем BulletTP мониторинг
+setupBulletTP()
+setupGunFeatureEvents() -- Инициализируем обработчики для функций оружия
 
 -- Connect functions to RunService
 local autoStompConnection = RunService.Heartbeat:Connect(applyDesyncStomp)
