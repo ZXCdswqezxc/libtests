@@ -112,6 +112,21 @@ local AutoStompConfig = {
 	}
 }
 
+-- Target Strafe Configuration
+local TargetStrafeConfig = {
+    Enabled = false,
+    Radius = 10,
+    Speed = 5,
+    YOffset = 0,
+    AvoidWalls = true,
+    LerpSpeed = 0.1,
+    State = {
+        Angle = 0,
+        OriginalCollision = nil,
+        NoClipConnection = nil -- Для сохранения соединения NoClip
+    }
+}
+
 -- Add UI elements for Combat/Aimbot
 local AimbotGroup = Tabs.Combat:AddLeftGroupbox("Aimbot")
 
@@ -1757,6 +1772,226 @@ local function setupBulletTP()
     end)
 end
 
+-- Add Target Strafe tab
+local TargetStrafeGroup = Tabs.Combat:AddRightGroupbox("Target Strafe")
+
+-- Main toggle for Target Strafe
+local TargetStrafeToggle = TargetStrafeGroup:AddToggle("TargetStrafeEnabled", {
+    Text = "Enable",
+    Default = TargetStrafeConfig.Enabled,
+    Tooltip = "Orbit around your target",
+    Callback = function(Value)
+        TargetStrafeConfig.Enabled = Value
+        
+        -- Cleanup if disabling
+        if not Value then
+            -- Restore collisions
+            disableNoClip()
+        end
+        
+        Library:Notify("Target Strafe " .. (Value and "enabled" or "disabled"), 1.5)
+    end
+})
+
+-- Add keybind to toggle
+local StrafeKey = TargetStrafeToggle:AddKeyPicker("StrafeKey", {
+    Default = "Y",
+    SyncToggleState = true,
+    Mode = "Toggle",
+    Text = "Toggle Key",
+    Callback = function(Value)
+        TargetStrafeConfig.Enabled = Value
+    end
+})
+
+-- Radius slider
+local RadiusSlider = TargetStrafeGroup:AddSlider("StrafeRadius", {
+    Text = "Radius",
+    Default = TargetStrafeConfig.Radius,
+    Min = 5,
+    Max = 50,
+    Rounding = 1,
+    Suffix = " studs",
+    Callback = function(Value)
+        TargetStrafeConfig.Radius = Value
+    end
+})
+
+-- Speed slider
+local SpeedSlider = TargetStrafeGroup:AddSlider("StrafeSpeed", {
+    Text = "Speed",
+    Default = TargetStrafeConfig.Speed,
+    Min = 1,
+    Max = 15,
+    Rounding = 1,
+    Suffix = " rad/s",
+    Callback = function(Value)
+        TargetStrafeConfig.Speed = Value
+    end
+})
+
+-- Y-Offset slider
+local YOffsetSlider = TargetStrafeGroup:AddSlider("StrafeYOffset", {
+    Text = "Y-Offset",
+    Default = TargetStrafeConfig.YOffset,
+    Min = -10,
+    Max = 10,
+    Rounding = 1,
+    Suffix = " studs",
+    Callback = function(Value)
+        TargetStrafeConfig.YOffset = Value
+    end
+})
+
+-- Avoid walls toggle
+local AvoidWallsToggle = TargetStrafeGroup:AddToggle("AvoidWallsEnabled", {
+    Text = "Avoid Walls",
+    Default = TargetStrafeConfig.AvoidWalls,
+    Tooltip = "Disable collisions while strafing",
+    Callback = function(Value)
+        TargetStrafeConfig.AvoidWalls = Value
+    end
+})
+
+-- Smoothing slider
+local LerpSpeedSlider = TargetStrafeGroup:AddSlider("LerpSpeed", {
+    Text = "Smoothness",
+    Default = TargetStrafeConfig.LerpSpeed * 10, -- Масштабируем для UI
+    Min = 1,
+    Max = 10,
+    Rounding = 1,
+    Suffix = "",
+    Callback = function(Value)
+        TargetStrafeConfig.LerpSpeed = Value / 10 -- Преобразуем обратно для работы
+    end
+})
+
+-- Улучшенная функция NoClip для обхода всех объектов
+local function enableNoClip()
+    if TargetStrafeConfig.State.NoClipConnection then
+        TargetStrafeConfig.State.NoClipConnection:Disconnect()
+    end
+    
+    local character = LocalPlayer.Character
+    if not character then return end
+    
+    -- Сохраняем оригинальные значения CanCollide для частей персонажа
+    TargetStrafeConfig.State.OriginalCollision = {}
+    for _, part in ipairs(character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            TargetStrafeConfig.State.OriginalCollision[part] = {
+                CanCollide = part.CanCollide,
+                CanTouch = part.CanTouch,
+                CanQuery = part.CanQuery
+            }
+            part.CanCollide = false
+            part.CanTouch = false
+            part.CanQuery = false
+        end
+    end
+    
+    -- Создаем соединение для постоянного отключения коллизии во время обновления
+    TargetStrafeConfig.State.NoClipConnection = RunService.Stepped:Connect(function()
+        for _, part in ipairs(character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = false
+            end
+        end
+    end)
+end
+
+-- Восстановление коллизии
+local function disableNoClip()
+    if TargetStrafeConfig.State.NoClipConnection then
+        TargetStrafeConfig.State.NoClipConnection:Disconnect()
+        TargetStrafeConfig.State.NoClipConnection = nil
+    end
+    
+    if TargetStrafeConfig.State.OriginalCollision then
+        for part, props in pairs(TargetStrafeConfig.State.OriginalCollision) do
+            if part and part.Parent then
+                part.CanCollide = props.CanCollide
+                part.CanTouch = props.CanTouch
+                if props.CanQuery ~= nil then
+                    part.CanQuery = props.CanQuery
+                end
+            end
+        end
+        TargetStrafeConfig.State.OriginalCollision = nil
+    end
+end
+
+-- Изменение функции disableCollisions на использование новой функции NoClip
+local function disableCollisions()
+    if not TargetStrafeConfig.AvoidWalls then return end
+    enableNoClip()
+end
+
+-- Function to initialize BodyPosition for TargetStrafe
+local function initBodyPosition()
+    local character = LocalPlayer.Character
+    if not character then return end
+    
+    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+    if not humanoidRootPart then return end
+    
+    if not TargetStrafeConfig.State.BodyPosition then
+        TargetStrafeConfig.State.BodyPosition = Instance.new("BodyPosition")
+        TargetStrafeConfig.State.BodyPosition.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+        TargetStrafeConfig.State.BodyPosition.P = 10000 -- Жесткость
+        TargetStrafeConfig.State.BodyPosition.D = 1000 -- Демпфирование
+        TargetStrafeConfig.State.BodyPosition.Parent = humanoidRootPart
+    end
+end
+
+-- Target strafe update function
+local function updateTargetStrafe(deltaTime)
+    -- Check if strafe is enabled and we have a target
+    if not TargetStrafeConfig.Enabled or not selectedTarget or not entityStates[selectedTarget] or not entityStates[selectedTarget].isTarget then
+        -- Cleanup if needed
+        if TargetStrafeConfig.AvoidWalls and TargetStrafeConfig.State.NoClipConnection then
+            disableNoClip()
+        end
+        return
+    end
+    
+    local character = LocalPlayer.Character
+    if not character then return end
+    
+    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+    if not humanoidRootPart then return end
+    
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    if not humanoid then return end
+    
+    -- Get target character
+    local targetCharacter = selectedTarget:IsA("Player") and selectedTarget.Character or selectedTarget
+    if not targetCharacter then return end
+    
+    local targetRoot = targetCharacter:FindFirstChild("HumanoidRootPart")
+    if not targetRoot then return end
+    
+    -- Make sure we have collision disabled if needed
+    if TargetStrafeConfig.AvoidWalls and not TargetStrafeConfig.State.NoClipConnection then
+        disableCollisions()
+    end
+    
+    -- Update angle based on speed
+    TargetStrafeConfig.State.Angle = TargetStrafeConfig.State.Angle + (TargetStrafeConfig.Speed * deltaTime)
+    
+    -- Calculate new position
+    local targetPos = targetRoot.Position
+    local offset = Vector3.new(
+        math.cos(TargetStrafeConfig.State.Angle) * TargetStrafeConfig.Radius, 
+        TargetStrafeConfig.YOffset, 
+        math.sin(TargetStrafeConfig.State.Angle) * TargetStrafeConfig.Radius
+    )
+    local newPos = targetPos + offset
+    
+    -- Используем CFrame движение
+    humanoidRootPart.CFrame = CFrame.new(newPos, Vector3.new(targetPos.X, newPos.Y, targetPos.Z))
+end
+
 -- Initialize aimbot
 initEntityStates()
 setupAimbot()
@@ -1776,6 +2011,11 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
+-- Add target strafe to RunService
+local targetStrafeConnection = RunService.Heartbeat:Connect(function(deltaTime)
+    updateTargetStrafe(deltaTime)
+end)
+
 -- Clean up when script is stopped
 game:BindToClose(function()
     if autoStompConnection then
@@ -1784,6 +2024,10 @@ game:BindToClose(function()
     
     if targetLookConnection then
         targetLookConnection:Disconnect()
+    end
+    
+    if targetStrafeConnection then
+        targetStrafeConnection:Disconnect()
     end
     
     if BulletTP.Connection then
@@ -1811,6 +2055,27 @@ game:BindToClose(function()
     end
     
     cleanupTracer()
+    
+    -- Cleanup target strafe
+    if TargetStrafeConfig.State.BodyPosition then
+        TargetStrafeConfig.State.BodyPosition:Destroy()
+    end
+    
+    if TargetStrafeConfig.State.NoClipConnection then
+        TargetStrafeConfig.State.NoClipConnection:Disconnect()
+    end
+    
+    if TargetStrafeConfig.State.OriginalCollision then
+        for part, props in pairs(TargetStrafeConfig.State.OriginalCollision) do
+            if part and part.Parent then
+                part.CanCollide = props.CanCollide
+                part.CanTouch = props.CanTouch
+                if props.CanQuery ~= nil then
+                    part.CanQuery = props.CanQuery
+                end
+            end
+        end
+    end
 end)
 
 -- Show the UI
