@@ -3,6 +3,19 @@ local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
 local ThemeManager = loadstring(game:HttpGet(repo .. "addons/ThemeManager.lua"))()
 local SaveManager = loadstring(game:HttpGet(repo .. "addons/SaveManager.lua"))()
 
+-- Services
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+-- Optimization Variables
+local LocalPlayer = Players.LocalPlayer
+local Camera = Workspace.CurrentCamera
+local BotsFolder = Workspace:FindFirstChild("Bots") or Instance.new("Folder", Workspace)
+local Inf = math.huge
+
 -- Create the main window
 local Window = Library:CreateWindow({
     Title = "TitanCX",
@@ -323,6 +336,202 @@ local BulletTPKey = BulletTPToggle:AddKeyPicker("BulletTPKey", {
     end
 })
 
+-- Add GripPos group
+local GripPosGroup = Tabs.Combat:AddRightGroupbox("Grip Position")
+
+-- Grip Position Configuration
+local GripPosConfig = {
+    Enabled = false,
+    Front = 0,
+    Side = 0,
+    Height = 0,
+    Random = {
+        Enabled = false,
+        Range = 7
+    }
+}
+
+-- Main toggle for Grip Position
+local GripPosToggle = GripPosGroup:AddToggle("GripPosEnabled", {
+    Text = "Fixed Position",
+    Default = GripPosConfig.Enabled,
+    Tooltip = "Изменить позицию грипа оружия",
+    Callback = function(Value)
+        GripPosConfig.Enabled = Value
+        
+        -- Логика управления grip position
+        if GripPosConfig.Enabled then
+            -- Отключаем Random режим если включен
+            if GripPosConfig.Random.Enabled then
+                GripPosConfig.Random.Enabled = false
+                
+                -- Отключим RandomGripToggle только если он уже инициализирован
+                if RandomGripToggle then 
+                    pcall(function() RandomGripToggle:SetValue(false) end)
+                end
+            end
+            
+            -- Отключаем старый цикл если был
+            if GripPosLoop then
+                pcall(function() GripPosLoop:Disconnect() end)
+                GripPosLoop = nil
+            end
+            
+            -- Проверяем наличие RunService и Stepped
+            if not RunService then
+                RunService = game:GetService("RunService")
+            end
+            
+            if not RunService or not RunService.Stepped then
+                Library:Notify("RunService не доступен", 1.5)
+                return
+            end
+            
+            -- Функция, запускающаяся в цикле при включенном режиме
+            GripPosLoop = RunService.Stepped:Connect(function()
+                if not GripPosConfig.Enabled then return end
+                
+                local character = LocalPlayer and LocalPlayer.Character
+                if not character then return end
+                
+                local tool = character:FindFirstChildOfClass("Tool")
+                if not tool then return end
+                
+                tool.GripPos = Vector3.new(-GripPosConfig.Side, -GripPosConfig.Height, GripPosConfig.Front)
+            end)
+        else
+            -- Отключаем цикл если был включен
+            if GripPosLoop then
+                pcall(function() GripPosLoop:Disconnect() end)
+                GripPosLoop = nil
+            end
+            
+            -- Возвращаем grip position в исходное состояние
+            local character = LocalPlayer and LocalPlayer.Character
+            if character then
+                local tool = character:FindFirstChildOfClass("Tool")
+                if tool then
+                    tool.GripPos = Vector3.new(0, 0, 0)
+                end
+            end
+        end
+    end
+})
+
+-- Sliders for Grip Position
+local GripFrontSlider = GripPosGroup:AddSlider("GripFront", {
+    Text = "Front",
+    Default = GripPosConfig.Front,
+    Min = -15,
+    Max = 15,
+    Rounding = 0,
+    Suffix = " studs",
+    Callback = function(Value)
+        GripPosConfig.Front = Value
+    end
+})
+
+local GripSideSlider = GripPosGroup:AddSlider("GripSide", {
+    Text = "Side",
+    Default = GripPosConfig.Side,
+    Min = -15,
+    Max = 15,
+    Rounding = 0,
+    Suffix = " studs",
+    Callback = function(Value)
+        GripPosConfig.Side = Value
+    end
+})
+
+local GripHeightSlider = GripPosGroup:AddSlider("GripHeight", {
+    Text = "Height",
+    Default = GripPosConfig.Height,
+    Min = -15,
+    Max = 15,
+    Rounding = 0,
+    Suffix = " studs",
+    Callback = function(Value)
+        GripPosConfig.Height = Value
+    end
+})
+
+-- Random Grip Position
+local RandomGripToggle = GripPosGroup:AddToggle("RandomGripEnabled", {
+    Text = "Random Position",
+    Default = GripPosConfig.Random.Enabled,
+    Tooltip = "Случайная позиция грипа оружия",
+    Callback = function(Value)
+        GripPosConfig.Random.Enabled = Value
+        
+        -- Сбрасываем состояние обычного режима
+        GripPosConfig.Enabled = false
+        
+        -- Логика управления случайным grip position
+        if GripPosConfig.Random.Enabled then
+            -- Отключаем старый цикл если был
+            if RandomGripLoop then
+                pcall(function() RandomGripLoop:Disconnect() end)
+                RandomGripLoop = nil
+            end
+            
+            -- Проверяем наличие RunService и Stepped
+            if not RunService then
+                RunService = game:GetService("RunService")
+            end
+            
+            if not RunService or not RunService.Stepped then
+                Library:Notify("RunService не доступен", 1.5)
+                return
+            end
+            
+            -- Функция, запускающаяся в цикле при включенном режиме
+            RandomGripLoop = RunService.Stepped:Connect(function()
+                if not GripPosConfig.Random.Enabled then return end
+                
+                local character = LocalPlayer and LocalPlayer.Character
+                if not character then return end
+                
+                local tool = character:FindFirstChildOfClass("Tool")
+                if not tool then return end
+                
+                tool.GripPos = Vector3.new(
+                    math.random(-GripPosConfig.Random.Range, GripPosConfig.Random.Range),
+                    math.random(-GripPosConfig.Random.Range, GripPosConfig.Random.Range),
+                    math.random(-GripPosConfig.Random.Range, GripPosConfig.Random.Range)
+                )
+            end)
+        else
+            -- Отключаем цикл если был включен
+            if RandomGripLoop then
+                pcall(function() RandomGripLoop:Disconnect() end)
+                RandomGripLoop = nil
+            end
+            
+            -- Возвращаем grip position в исходное состояние
+            local character = LocalPlayer and LocalPlayer.Character
+            if character then
+                local tool = character:FindFirstChildOfClass("Tool")
+                if tool then
+                    tool.GripPos = Vector3.new(0, 0, 0)
+                end
+            end
+        end
+    end
+})
+
+-- Range slider for Random Grip
+local RangeSlider = GripPosGroup:AddSlider("RandomRange", {
+    Text = "Random Range",
+    Default = GripPosConfig.Random.Range,
+    Min = 1,
+    Max = 50,
+    Rounding = 0,
+    Suffix = " studs",
+    Callback = function(Value)
+        GripPosConfig.Random.Range = Value
+    end
+})
+
 -- Add Stuff group
 local StuffGroup = Tabs.Combat:AddLeftGroupbox("Stuff")
 
@@ -445,19 +654,6 @@ local SecondaryColorPicker = VisualizerToggle:AddColorPicker("SecondaryColorPick
         AutoStompConfig.Text.SecondaryColor = Value
     end
 })
-
--- Services
-local Players = game:GetService("Players")
-local Workspace = game:GetService("Workspace")
-local UserInputService = game:GetService("UserInputService")
-local RunService = game:GetService("RunService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
--- Optimization Variables
-local LocalPlayer = Players.LocalPlayer
-local Camera = Workspace.CurrentCamera
-local BotsFolder = Workspace:FindFirstChild("Bots") or Instance.new("Folder", Workspace)
-local Inf = math.huge
 
 -- State Variables
 local selectedTarget = nil -- Currently selected target (player or bot)
@@ -1357,6 +1553,14 @@ game:BindToClose(function()
     end
     
     cleanupDesync()
+    
+    if GripPosLoop then
+        GripPosLoop:Disconnect()
+    end
+    
+    if RandomGripLoop then
+        RandomGripLoop:Disconnect()
+    end
 end)
 
 -- Show the UI
