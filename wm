@@ -80,7 +80,17 @@ local SilentAimConfig = {
 	},
 	LookAt = {
 		Enabled = false -- Поворачивать персонажа в сторону цели
-	}
+	},
+	TargetHighlight = {
+		Enabled = false, -- Highlight target through walls
+		FillColor = Color3.fromRGB(255, 0, 0), -- Red fill color
+		OutlineColor = Color3.fromRGB(255, 255, 0) -- Yellow outline color
+	},
+    Tracer = {
+        Enabled = false, -- Draw line to target
+        Color = Color3.fromRGB(255, 0, 0), -- Red tracer line
+        Thickness = 2 -- Tracer thickness
+    }
 }
 
 -- AutoStomp Configuration
@@ -309,6 +319,112 @@ local GrabbedCheckToggle = ChecksGroup:AddToggle("GrabbedCheck", {
 
 -- Add Extra group with AutoStomp
 local ExtraGroup = Tabs.Combat:AddRightGroupbox("Extra")
+
+-- Add Target Highlight group
+local TargetHighlightGroup = Tabs.Combat:AddLeftGroupbox("Target Highlight")
+
+-- Main toggle for Target Highlight
+local TargetHighlightToggle = TargetHighlightGroup:AddToggle("TargetHighlightEnabled", {
+    Text = "Enable",
+    Default = SilentAimConfig.TargetHighlight.Enabled,
+    Tooltip = "Highlight target through walls",
+    Callback = function(Value)
+        SilentAimConfig.TargetHighlight.Enabled = Value
+        
+        -- Clean up existing highlight if disabled
+        if not Value and targetHighlight then
+            targetHighlight:Destroy()
+            targetHighlight = nil
+        elseif Value and selectedTarget then
+            -- Create new highlight if enabled and we have a target
+            createTargetHighlight()
+        end
+        
+        Library:Notify("Target Highlight " .. (Value and "enabled" or "disabled"), 1.5)
+    end
+})
+
+-- Fill color picker
+local FillColorPicker = TargetHighlightToggle:AddColorPicker("FillColor", {
+    Default = SilentAimConfig.TargetHighlight.FillColor,
+    Title = "Fill Color",
+    Callback = function(Value)
+        SilentAimConfig.TargetHighlight.FillColor = Value
+        
+        -- Direct update of active highlight
+        if targetHighlight then
+            targetHighlight.FillColor = Value
+        end
+    end
+})
+
+-- Outline color picker
+local OutlineColorPicker = TargetHighlightToggle:AddColorPicker("OutlineColor", {
+    Default = SilentAimConfig.TargetHighlight.OutlineColor,
+    Title = "Outline Color",
+    Callback = function(Value)
+        SilentAimConfig.TargetHighlight.OutlineColor = Value
+        
+        -- Direct update of active highlight
+        if targetHighlight then
+            targetHighlight.OutlineColor = Value
+        end
+    end
+})
+
+-- Add Tracer group
+local TracerGroup = Tabs.Combat:AddLeftGroupbox("Tracer to Target")
+
+-- Main toggle for Tracer
+local TracerToggle = TracerGroup:AddToggle("TracerEnabled", {
+    Text = "Enable",
+    Default = SilentAimConfig.Tracer.Enabled,
+    Tooltip = "Draw line from cursor to target",
+    Callback = function(Value)
+        SilentAimConfig.Tracer.Enabled = Value
+        
+        -- Clean up existing tracer if disabled
+        if not Value then
+            cleanupTracer()
+        elseif Value and selectedTarget then
+            -- Create new tracer if enabled and we have a target
+            createTargetTracer()
+        end
+        
+        Library:Notify("Tracer " .. (Value and "enabled" or "disabled"), 1.5)
+    end
+})
+
+-- Tracer color picker
+local TracerColorPicker = TracerToggle:AddColorPicker("TracerColor", {
+    Default = SilentAimConfig.Tracer.Color,
+    Title = "Tracer Color",
+    Callback = function(Value)
+        SilentAimConfig.Tracer.Color = Value
+        
+        -- Direct update of active tracer
+        if tracerLine then
+            tracerLine.Color = Value
+        end
+    end
+})
+
+-- Thickness slider
+local ThicknessSlider = TracerGroup:AddSlider("TracerThickness", {
+    Text = "Thickness",
+    Default = SilentAimConfig.Tracer.Thickness,
+    Min = 1,
+    Max = 5,
+    Rounding = 0,
+    Callback = function(Value)
+        SilentAimConfig.Tracer.Thickness = Value
+        
+        -- Direct update of active tracer
+        if tracerLine then
+            tracerLine.Thickness = Value
+        end
+    end
+})
 
 -- Add BulletTP group
 local BulletTPGroup = Tabs.Combat:AddLeftGroupbox("Bullet TP")
@@ -680,6 +796,10 @@ local autoStompState = {
 
 -- Entity state table (players and bots)
 local entityStates = {} -- Tracks isTarget for each entity (player or bot)
+
+-- Storage for highlight and tracer objects
+local targetHighlight = nil
+local tracerLine = nil
 
 -- Prevent multiple executions
 if getgenv().Loaded then
@@ -1238,6 +1358,99 @@ local function getTargetName(entity)
     return "Target"
 end
 
+-- Function to create highlight for current target
+function createTargetHighlight()
+    -- Remove any existing highlight
+    if targetHighlight then
+        targetHighlight:Destroy()
+        targetHighlight = nil
+    end
+    
+    -- Don't create highlight if feature is disabled or no target
+    if not SilentAimConfig.TargetHighlight.Enabled or not selectedTarget then 
+        return 
+    end
+    
+    -- Get character model
+    local character = selectedTarget:IsA("Player") and selectedTarget.Character or selectedTarget
+    if not character then
+        return
+    end
+    
+    -- Create new highlight
+    targetHighlight = Instance.new("Highlight")
+    targetHighlight.Name = "TargetHighlight"
+    targetHighlight.FillColor = SilentAimConfig.TargetHighlight.FillColor
+    targetHighlight.OutlineColor = SilentAimConfig.TargetHighlight.OutlineColor
+    targetHighlight.FillTransparency = 0.5 -- Fixed value
+    targetHighlight.OutlineTransparency = 0 -- Fixed value
+    targetHighlight.Adornee = character
+    targetHighlight.Parent = game.CoreGui
+end
+
+-- Function to create tracer to current target using Drawing API
+function createTargetTracer()
+    -- Clean up existing tracer
+    cleanupTracer()
+    
+    -- Don't create tracer if feature is disabled or no target
+    if not SilentAimConfig.Tracer.Enabled or not selectedTarget then 
+        return 
+    end
+    
+    -- Create Drawing line object
+    tracerLine = Drawing.new("Line")
+    tracerLine.Visible = false -- Will be set to true in update function when positions are valid
+    tracerLine.Color = SilentAimConfig.Tracer.Color
+    tracerLine.Thickness = SilentAimConfig.Tracer.Thickness
+    tracerLine.Transparency = 1 -- Fully opaque
+    
+    -- Tracer will be updated in the update loop
+end
+
+-- Function to update tracer position (from mouse to target)
+function updateTracerPosition()
+    if not tracerLine or not SilentAimConfig.Tracer.Enabled or not selectedTarget then
+        return
+    end
+    
+    local targetCharacter = selectedTarget:IsA("Player") and selectedTarget.Character or selectedTarget
+    if not targetCharacter then
+        tracerLine.Visible = false
+        return
+    end
+    
+    local targetPart = targetCharacter:FindFirstChild(SilentAimConfig.AimPart)
+    if not targetPart then
+        tracerLine.Visible = false
+        return
+    end
+    
+    -- Get target position in world space
+    local targetPosition = targetPart.Position
+    
+    -- Convert target position to screen space
+    local targetScreenPosition, targetOnScreen = Camera:WorldToViewportPoint(targetPosition)
+    
+    -- Get mouse position
+    local mousePosition = UserInputService:GetMouseLocation()
+    
+    -- Update line points
+    tracerLine.From = Vector2.new(mousePosition.X, mousePosition.Y)
+    tracerLine.To = Vector2.new(targetScreenPosition.X, targetScreenPosition.Y)
+    
+    -- Only show if target is on screen
+    tracerLine.Visible = targetOnScreen
+end
+
+-- Function to clean up tracer
+function cleanupTracer()
+    if tracerLine then
+        tracerLine:Remove()
+        tracerLine = nil
+    end
+end
+
 -- Handle keybind for target selection
 local function setupKeybind()
 	UserInputService.InputBegan:Connect(function(input, gameProcessed)
@@ -1253,6 +1466,15 @@ local function setupKeybind()
 				-- Deselect current target
 				entityStates[selectedTarget].isTarget = false
 				local targetName = getTargetName(selectedTarget)
+				
+				-- Clean up highlight and tracer
+				if targetHighlight then
+                    targetHighlight:Destroy()
+                    targetHighlight = nil
+				end
+				
+				cleanupTracer()
+				
 				selectedTarget = nil
 				velmoddedState.target = nil
 				velmoddedState.last_position = nil
@@ -1263,6 +1485,14 @@ local function setupKeybind()
 				-- Select new target
 				local closestEntity = getClosestEntityToCursor()
 				if closestEntity then
+					-- Clean up previous target highlight and tracer
+					if targetHighlight then
+                        targetHighlight:Destroy()
+                        targetHighlight = nil
+					end
+					
+					cleanupTracer()
+					
 					selectedTarget = closestEntity
 					entityStates[selectedTarget].isTarget = true
 					local targetName = getTargetName(selectedTarget)
@@ -1270,6 +1500,10 @@ local function setupKeybind()
 					if SilentAimConfig.Prediction.Type == "Velmodded" then
 						velmoddedState.target = selectedTarget
 					end
+					
+					-- Create highlight and tracer for new target
+					createTargetHighlight()
+					createTargetTracer()
 					
 					Library:Notify("Aimbot locked to " .. targetName, 1.5)
 				else
@@ -1534,6 +1768,14 @@ setupBulletTP() -- Инициализируем BulletTP мониторинг
 local autoStompConnection = RunService.Heartbeat:Connect(applyDesyncStomp)
 local targetLookConnection = RunService.RenderStepped:Connect(lookAtTarget)
 
+-- Update tracer position every frame
+RunService.RenderStepped:Connect(function()
+    -- Update tracer if enabled with selected target
+    if SilentAimConfig.Tracer.Enabled and selectedTarget then
+        updateTracerPosition()
+    end
+end)
+
 -- Clean up when script is stopped
 game:BindToClose(function()
     if autoStompConnection then
@@ -1561,6 +1803,14 @@ game:BindToClose(function()
     if RandomGripLoop then
         RandomGripLoop:Disconnect()
     end
+    
+    -- Clean up highlight and tracer
+    if targetHighlight then
+        targetHighlight:Destroy()
+        targetHighlight = nil
+    end
+    
+    cleanupTracer()
 end)
 
 -- Show the UI
