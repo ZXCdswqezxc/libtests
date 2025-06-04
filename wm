@@ -58,7 +58,28 @@ local SilentAimConfig = {
 	Checks = {
 		WallCheck = false, -- Check for obstructions
 		TargetDeath = false, -- Stop aiming if target dies
-		ResetTargetOnLocalDeath = false -- Reset target when local player dies
+		ResetTargetOnLocalDeath = false, -- Reset target when local player dies
+		KOCheck = false, -- Check if target is knocked out
+		GrabbedCheck = false -- Check if target is grabbed
+	}
+}
+
+-- AutoStomp Configuration
+local AutoStompConfig = {
+	Enabled = false, -- Master switch for AutoStomp
+	StompCount = 20, -- Number of stomps to perform
+	StompInterval = 0.099, -- Time between stomps in seconds
+	YOffset = 2, -- Vertical offset for stomping position
+	Visualizer = {
+		Enabled = true, -- Enable visual indicator
+		Color = Color3.fromRGB(255, 0, 0), -- Red color
+		Transparency = 0.3, -- 30% transparency
+		Size = Vector3.new(5, 15, 5) -- Size of visualizer (увеличено в 10 раз)
+	},
+	Text = {
+		PrimaryColor = Color3.fromRGB(255, 0, 0), -- Первый цвет (красный)
+		SecondaryColor = Color3.fromRGB(255, 255, 0), -- Второй цвет (желтый)
+		BlinkSpeed = 0.5 -- Скорость мигания в секундах
 	}
 }
 
@@ -248,11 +269,135 @@ local ResetOnDeathToggle = ChecksGroup:AddToggle("ResetOnDeath", {
     end
 })
 
+-- Add KO Check and Grabbed Check to Checks group
+local KOCheckToggle = ChecksGroup:AddToggle("KOCheck", {
+    Text = "K.O. Check",
+    Default = SilentAimConfig.Checks.KOCheck,
+    Tooltip = "Skip KO'd targets",
+    Callback = function(Value)
+        SilentAimConfig.Checks.KOCheck = Value
+    end
+})
+
+local GrabbedCheckToggle = ChecksGroup:AddToggle("GrabbedCheck", {
+    Text = "Grabbed Check",
+    Default = SilentAimConfig.Checks.GrabbedCheck,
+    Tooltip = "Skip grabbed targets",
+    Callback = function(Value)
+        SilentAimConfig.Checks.GrabbedCheck = Value
+    end
+})
+
+-- Add Extra group with AutoStomp
+local ExtraGroup = Tabs.Combat:AddRightGroupbox("Extra")
+
+local AutoStompToggle = ExtraGroup:AddToggle("AutoStompEnabled", {
+    Text = "Auto Stomp",
+    Default = AutoStompConfig.Enabled,
+    Tooltip = "Automatically stomp KO'd targets",
+    Callback = function(Value)
+        AutoStompConfig.Enabled = Value
+        Library:Notify("Auto Stomp " .. (Value and "enabled" or "disabled"), 1.5)
+    end
+})
+
+local StompCountSlider = ExtraGroup:AddSlider("StompCount", {
+    Text = "Stomp Count",
+    Default = AutoStompConfig.StompCount,
+    Min = 1,
+    Max = 50,
+    Rounding = 0,
+    Callback = function(Value)
+        AutoStompConfig.StompCount = Value
+    end
+})
+
+local StompIntervalInput = ExtraGroup:AddInput("StompInterval", {
+    Text = "Interval",
+    Default = tostring(AutoStompConfig.StompInterval),
+    Numeric = true,
+    Finished = true,
+    Placeholder = "Value...",
+    Tooltip = "Time between stomps",
+    Callback = function(Value)
+        local num = tonumber(Value)
+        if num then
+            AutoStompConfig.StompInterval = num
+            Library:Notify("Interval set to " .. num, 1.5)
+        end
+    end
+})
+
+local YOffsetSlider = ExtraGroup:AddSlider("YOffset", {
+    Text = "Y Offset",
+    Default = AutoStompConfig.YOffset,
+    Min = 0,
+    Max = 5,
+    Rounding = 2,
+    Suffix = " studs",
+    Callback = function(Value)
+        AutoStompConfig.YOffset = Value
+    end
+})
+
+-- Visualizer settings
+local VisualizerToggle = ExtraGroup:AddToggle("VisualizerEnabled", {
+    Text = "Visualizer",
+    Default = AutoStompConfig.Visualizer.Enabled,
+    Tooltip = "Show desync position",
+    Callback = function(Value)
+        AutoStompConfig.Visualizer.Enabled = Value
+        
+        -- Update active visualizer if desync is currently running
+        if autoStompState.activeState then
+            if Value and not autoStompState.visualizer then
+                autoStompState.visualizer = createVisualizer()
+            elseif not Value and autoStompState.visualizer then
+                autoStompState.visualizer:Destroy()
+                autoStompState.visualizer = nil
+            end
+        end
+    end
+})
+
+-- Box color
+local BoxColorPicker = VisualizerToggle:AddColorPicker("VisualizerColorR", {
+    Default = AutoStompConfig.Visualizer.Color,
+    Title = "Box Color",
+    Callback = function(Value)
+        AutoStompConfig.Visualizer.Color = Value
+        
+        -- Update active visualizer if it exists
+        if autoStompState.visualizer then
+            autoStompState.visualizer.Color = Value
+        end
+    end
+})
+
+-- Text primary color
+local PrimaryColorPicker = VisualizerToggle:AddColorPicker("PrimaryColorPicker", {
+    Default = AutoStompConfig.Text.PrimaryColor,
+    Title = "Text Color 1",
+    Callback = function(Value)
+        AutoStompConfig.Text.PrimaryColor = Value
+    end
+})
+
+-- Text secondary color
+local SecondaryColorPicker = VisualizerToggle:AddColorPicker("SecondaryColorPicker", {
+    Default = AutoStompConfig.Text.SecondaryColor, 
+    Title = "Text Color 2",
+    Callback = function(Value)
+        AutoStompConfig.Text.SecondaryColor = Value
+    end
+})
+
 -- Services
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 -- Optimization Variables
 local LocalPlayer = Players.LocalPlayer
@@ -272,6 +417,17 @@ local velmoddedState = { -- Velmodded resolver state
 	target_velocity = Vector3.zero
 }
 
+-- AutoStomp state variables
+local autoStompState = {
+    activeState = false, -- Active state (is desync and stomp being performed)
+    followPart = nil, -- Part for camera to follow during desync
+    stompCounter = 0, -- Current stomp count
+    lastStompTime = nil, -- Last time a stomp was performed
+    visualizer = nil, -- Visual indicator for desync position
+    stompingText = nil, -- Text label to show "STOMPING"
+    lastTextBlink = 0 -- Timer for text blinking effect
+}
+
 -- Entity state table (players and bots)
 local entityStates = {} -- Tracks isTarget for each entity (player or bot)
 
@@ -280,6 +436,231 @@ if getgenv().Loaded then
 	return
 end
 getgenv().Loaded = true
+
+-- Check if target is knocked out and not grabbed
+local function checkKOState(entity)
+    if not entity or not entity:IsA("Player") or not entity.Character then
+        return false
+    end
+    
+    local bodyEffects = entity.Character:FindFirstChild("BodyEffects")
+    if not bodyEffects then
+        return false
+    end
+    
+    local ko = bodyEffects:FindFirstChild("K.O")
+    local isGrabbed = entity.Character:FindFirstChild("GRABBING_CONSTRAINT") ~= nil
+    
+    return ko and ko.Value and not isGrabbed
+end
+
+-- AutoStomp functions
+local function createFollowPart()
+    local part = Instance.new("Part")
+    part.Name = "FollowPart"
+    part.Anchored = true
+    part.CanCollide = false
+    part.Transparency = 1
+    part.Size = Vector3.new(0.1, 0.1, 0.1)
+    part.Parent = Workspace
+    return part
+end
+
+local function createVisualizer()
+    if not AutoStompConfig.Visualizer.Enabled then
+        return nil
+    end
+    
+    local visualizer = Instance.new("Part")
+    visualizer.Name = "DesyncVisualizer"
+    visualizer.Anchored = true
+    visualizer.CanCollide = false
+    visualizer.Material = Enum.Material.ForceField
+    visualizer.Size = AutoStompConfig.Visualizer.Size
+    visualizer.Color = AutoStompConfig.Visualizer.Color
+    visualizer.Transparency = AutoStompConfig.Visualizer.Transparency
+    visualizer.Parent = Workspace
+    return visualizer
+end
+
+-- Функция для создания текста "STOMPING"
+local function createStompingText()
+    -- Создаем BillboardGui
+    local billboardGui = Instance.new("BillboardGui")
+    billboardGui.Name = "StompingLabel"
+    billboardGui.Size = UDim2.new(0, 200, 0, 50)
+    billboardGui.StudsOffset = Vector3.new(0, 2, 0) -- Размещаем над целью
+    billboardGui.AlwaysOnTop = true
+    billboardGui.LightInfluence = 0
+    billboardGui.MaxDistance = 100
+    billboardGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling -- Для видимости через стены
+    
+    -- Устанавливаем пометку "AlwaysOnTop" для видимости через стены
+    local humanoidRootPart = Workspace.CurrentCamera
+    if humanoidRootPart then
+        billboardGui.Adornee = humanoidRootPart
+    end
+    
+    -- Создаем текстовую метку
+    local textLabel = Instance.new("TextLabel")
+    textLabel.Size = UDim2.new(1, 0, 1, 0)
+    textLabel.BackgroundTransparency = 1
+    textLabel.TextColor3 = AutoStompConfig.Text.PrimaryColor
+    textLabel.TextStrokeTransparency = 0 -- Черная обводка
+    textLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+    textLabel.TextSize = 30
+    textLabel.Font = Enum.Font.GothamBold
+    textLabel.Text = "STOMPING"
+    textLabel.TextScaled = true
+    textLabel.ZIndex = 10 -- Высокий Z-Index для отображения поверх других объектов
+    textLabel.Parent = billboardGui
+    
+    return billboardGui
+end
+
+local function setupDesync()
+    if autoStompState.activeState then return end
+    autoStompState.activeState = true
+    autoStompState.followPart = createFollowPart()
+    autoStompState.visualizer = createVisualizer()
+    autoStompState.stompCounter = AutoStompConfig.StompCount
+    autoStompState.lastStompTime = tick()
+    
+    -- Создаем текстовую метку и прикрепляем к цели
+    if selectedTarget and selectedTarget:IsA("Player") and selectedTarget.Character then
+        autoStompState.stompingText = createStompingText()
+        
+        -- Размещаем метку в пространстве
+        autoStompState.stompingText.Parent = game.CoreGui -- Для видимости через стены
+        
+        -- Точка привязки для позиционирования
+        local targetPart = selectedTarget.Character:FindFirstChild("UpperTorso") or 
+                          selectedTarget.Character:FindFirstChild("Torso") or 
+                          selectedTarget.Character:FindFirstChild("HumanoidRootPart")
+        
+        if targetPart then
+            autoStompState.stompingText.Adornee = targetPart
+        else
+            autoStompState.stompingText.Adornee = Workspace.CurrentCamera
+        end
+    end
+    
+    Library:Notify("Desync activated", 1)
+end
+
+local function cleanupDesync()
+    if not autoStompState.activeState then return end
+    autoStompState.activeState = false
+    
+    if autoStompState.followPart then
+        autoStompState.followPart:Destroy()
+        autoStompState.followPart = nil
+    end
+    
+    if autoStompState.visualizer then
+        autoStompState.visualizer:Destroy()
+        autoStompState.visualizer = nil
+    end
+    
+    if autoStompState.stompingText then
+        autoStompState.stompingText:Destroy()
+        autoStompState.stompingText = nil
+    end
+    
+    autoStompState.stompCounter = 0
+    autoStompState.lastStompTime = nil
+    Camera.CameraSubject = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+    
+    Library:Notify("Desync deactivated", 1)
+end
+
+local function performStomp()
+    ReplicatedStorage.MainEvent:FireServer("Stomp")
+    if ReplicatedStorage:FindFirstChild("assets") and ReplicatedStorage.assets:FindFirstChild("dh") then
+        ReplicatedStorage.assets.dh.MainEvent:FireServer("Stomp")
+    end
+    autoStompState.stompCounter = autoStompState.stompCounter - 1
+    autoStompState.lastStompTime = tick()
+    if autoStompState.stompCounter <= 0 then
+        cleanupDesync()
+    end
+end
+
+local function applyDesyncStomp()
+    if not AutoStompConfig.Enabled or not selectedTarget or not checkKOState(selectedTarget) then
+        if autoStompState.activeState then cleanupDesync() end
+        return
+    end
+
+    local ragdollPart = selectedTarget.Character:FindFirstChild("UpperTorso") or selectedTarget.Character:FindFirstChild("HumanoidRootPart")
+    if not ragdollPart then
+        if autoStompState.activeState then cleanupDesync() end
+        return
+    end
+
+    local character = LocalPlayer.Character
+    if not character or not character:FindFirstChild("HumanoidRootPart") then
+        if autoStompState.activeState then cleanupDesync() end
+        return
+    end
+
+    if not autoStompState.activeState then
+        setupDesync()
+    end
+
+    local currentTargetPosition = ragdollPart.Position
+    local originalCFrame = character.HumanoidRootPart.CFrame
+    local newCFrame = CFrame.new(currentTargetPosition + Vector3.new(0, AutoStompConfig.YOffset, 0))
+    
+    -- Обновляем позицию визуализатора
+    if autoStompState.visualizer then
+        autoStompState.visualizer.Position = currentTargetPosition + Vector3.new(0, AutoStompConfig.YOffset, 0)
+    end
+    
+    -- Обновляем привязку текста к цели, если часть тела изменилась
+    if autoStompState.stompingText then
+        local targetPart = selectedTarget.Character:FindFirstChild("UpperTorso") or 
+                          selectedTarget.Character:FindFirstChild("Torso") or 
+                          selectedTarget.Character:FindFirstChild("HumanoidRootPart")
+        if targetPart then
+            autoStompState.stompingText.Adornee = targetPart
+            
+            -- Если текст не в CoreGui, перемещаем его туда для видимости через стены
+            if autoStompState.stompingText.Parent ~= game.CoreGui then
+                autoStompState.stompingText.Parent = game.CoreGui
+            end
+            
+            -- Эффект мигания для текста каждые 0.5 секунд
+            local currentTime = tick()
+            if (currentTime - autoStompState.lastTextBlink) > AutoStompConfig.Text.BlinkSpeed then
+                autoStompState.lastTextBlink = currentTime
+                
+                local textLabel = autoStompState.stompingText:FindFirstChildOfClass("TextLabel")
+                if textLabel then
+                    -- Меняем между настраиваемыми цветами
+                    if textLabel.TextColor3 == AutoStompConfig.Text.PrimaryColor then
+                        textLabel.TextColor3 = AutoStompConfig.Text.SecondaryColor
+                        textLabel.TextSize = 35 -- Увеличиваем размер
+                    else
+                        textLabel.TextColor3 = AutoStompConfig.Text.PrimaryColor
+                        textLabel.TextSize = 30 -- Уменьшаем размер
+                    end
+                end
+            end
+        end
+    end
+
+    autoStompState.followPart.CFrame = originalCFrame + Vector3.new(0, 1.5, 0)
+    Camera.CameraSubject = autoStompState.followPart
+
+    character.HumanoidRootPart.CFrame = newCFrame
+    RunService.RenderStepped:Wait()
+    character.HumanoidRootPart.CFrame = originalCFrame
+
+    if autoStompState.lastStompTime and (tick() - autoStompState.lastStompTime) >= AutoStompConfig.StompInterval and autoStompState.stompCounter > 0 then
+        performStomp()
+    end
+end
 
 -- Initialize entity states
 local function initEntityStates()
@@ -388,6 +769,22 @@ local function getClosestEntityToCursor()
 	-- Check players
 	for _, player in ipairs(Players:GetPlayers()) do
 		if player ~= LocalPlayer and player.Character and isEntityAlive(player) and wallCheck(player) then
+			-- Add KO and Grabbed checks
+			if (SilentAimConfig.Checks.KOCheck or SilentAimConfig.Checks.GrabbedCheck) and player:IsA("Player") then
+				local bodyEffects = player.Character:FindFirstChild("BodyEffects")
+				if bodyEffects then
+					-- Skip knocked out targets if KO check is enabled
+					if SilentAimConfig.Checks.KOCheck and bodyEffects:FindFirstChild("K.O") and bodyEffects["K.O"].Value then
+						continue
+					end
+					
+					-- Skip grabbed targets if Grabbed check is enabled
+					if SilentAimConfig.Checks.GrabbedCheck and player.Character:FindFirstChild("GRABBING_CONSTRAINT") then
+						continue
+					end
+				end
+			end
+	
 			local part = player.Character:FindFirstChild(SilentAimConfig.AimPart)
 			if part then
 				local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
@@ -630,6 +1027,17 @@ initEntityStates()
 setupAimbot()
 setupKeybind()
 setupCharacterHandling()
+
+-- Connect AutoStomp function to RunService
+local autoStompConnection = RunService.Heartbeat:Connect(applyDesyncStomp)
+
+-- Clean up when script is stopped
+game:BindToClose(function()
+    if autoStompConnection then
+        autoStompConnection:Disconnect()
+    end
+    cleanupDesync()
+end)
 
 -- Show the UI
 Library:Toggle(true)
