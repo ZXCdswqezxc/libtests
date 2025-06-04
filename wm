@@ -24,14 +24,12 @@ local Window = Library:CreateWindow({
 })
 
 -- Create tabs
-local Tabs = {
-    Combat = Window:AddTab("Combat", "sword"),
-    Movement = Window:AddTab("Movement", "move"),
-    Visuals = Window:AddTab("Visuals", "eye"),
-    Misc = Window:AddTab("Misc", "box"),
-    Other = Window:AddTab("Other", "list"),
-    HUD = Window:AddTab("HUD", "monitor"),
-}
+local CombatTab = Window:AddTab("Combat", "sword")
+local MovementTab = Window:AddTab("Movement", "move")
+local VisualsTab = Window:AddTab("Visuals", "eye")
+local MiscTab = Window:AddTab("Misc", "box")
+local OtherTab = Window:AddTab("Other", "list")
+local HUDTab = Window:AddTab("HUD", "monitor")
 
 -- Setup ThemeManager and SaveManager
 ThemeManager:SetLibrary(Library)
@@ -42,8 +40,8 @@ SaveManager:SetIgnoreIndexes({ "MenuKeybind" })
 ThemeManager:SetFolder("ClickGUI")
 SaveManager:SetFolder("ClickGUI/settings")
 
-SaveManager:BuildConfigSection(Tabs["HUD"])
-ThemeManager:ApplyToTab(Tabs["HUD"])
+SaveManager:BuildConfigSection(HUDTab)
+ThemeManager:ApplyToTab(HUDTab)
 
 -- Silent Aim Configuration
 local SilentAimConfig = {
@@ -128,7 +126,7 @@ local TargetStrafeConfig = {
 }
 
 -- Add UI elements for Combat/Aimbot
-local AimbotGroup = Tabs.Combat:AddLeftGroupbox("Aimbot")
+local AimbotGroup = CombatTab:AddLeftGroupbox("Aimbot")
 
 -- Main toggle
 local AimbotToggle = AimbotGroup:AddToggle("AimbotEnabled", {
@@ -225,7 +223,7 @@ local YPredictionInput = AimbotGroup:AddInput("PredictionY", {
 })
 
 -- Velmodded settings
-local VelmoddedGroup = Tabs.Combat:AddRightGroupbox("Advanced")
+local VelmoddedGroup = CombatTab:AddRightGroupbox("Advanced")
 
 local ResolverRefreshSlider = VelmoddedGroup:AddSlider("ResolverRefresh", {
     Text = "Refresh",
@@ -257,7 +255,7 @@ local PredictionFactorInput = VelmoddedGroup:AddInput("PredictionFactor", {
 })
 
 -- Offset settings
-local OffsetGroup = Tabs.Combat:AddRightGroupbox("Offsets")
+local OffsetGroup = CombatTab:AddRightGroupbox("Offsets")
 
 local JumpOffsetSlider = OffsetGroup:AddSlider("JumpOffset", {
     Text = "Jump",
@@ -284,7 +282,7 @@ local FallOffsetSlider = OffsetGroup:AddSlider("FallOffset", {
 })
 
 -- Checks
-local ChecksGroup = Tabs.Combat:AddLeftGroupbox("Checks")
+local ChecksGroup = CombatTab:AddLeftGroupbox("Checks")
 
 local WallCheckToggle = ChecksGroup:AddToggle("WallCheck", {
     Text = "Visibility",
@@ -333,10 +331,10 @@ local GrabbedCheckToggle = ChecksGroup:AddToggle("GrabbedCheck", {
 })
 
 -- Add Extra group with AutoStomp
-local ExtraGroup = Tabs.Combat:AddRightGroupbox("Extra")
+local ExtraGroup = CombatTab:AddRightGroupbox("Extra")
 
 -- Add Target Highlight group
-local TargetHighlightGroup = Tabs.Combat:AddLeftGroupbox("Target Highlight")
+local TargetHighlightGroup = CombatTab:AddLeftGroupbox("Target Highlight")
 
 -- Main toggle for Target Highlight
 local TargetHighlightToggle = TargetHighlightGroup:AddToggle("TargetHighlightEnabled", {
@@ -388,7 +386,7 @@ local OutlineColorPicker = TargetHighlightToggle:AddColorPicker("OutlineColor", 
 })
 
 -- Add Tracer group
-local TracerGroup = Tabs.Combat:AddLeftGroupbox("Tracer to Target")
+local TracerGroup = CombatTab:AddLeftGroupbox("Tracer to Target")
 
 -- Main toggle for Tracer
 local TracerToggle = TracerGroup:AddToggle("TracerEnabled", {
@@ -442,7 +440,7 @@ local ThicknessSlider = TracerGroup:AddSlider("TracerThickness", {
 })
 
 -- Add BulletTP group
-local BulletTPGroup = Tabs.Combat:AddLeftGroupbox("Bullet TP")
+local BulletTPGroup = CombatTab:AddLeftGroupbox("Bullet TP")
 
 -- Main toggle
 local BulletTPToggle = BulletTPGroup:AddToggle("BulletTPEnabled", {
@@ -468,7 +466,7 @@ local BulletTPKey = BulletTPToggle:AddKeyPicker("BulletTPKey", {
 })
 
 -- Add GripPos group
-local GripPosGroup = Tabs.Combat:AddRightGroupbox("Grip Position")
+local GripPosGroup = CombatTab:AddRightGroupbox("Grip Position")
 
 -- Grip Position Configuration
 local GripPosConfig = {
@@ -664,7 +662,7 @@ local RangeSlider = GripPosGroup:AddSlider("RandomRange", {
 })
 
 -- Add Stuff group
-local StuffGroup = Tabs.Combat:AddLeftGroupbox("Stuff")
+local StuffGroup = CombatTab:AddLeftGroupbox("Stuff")
 
 -- Target Look toggle
 local LookAtToggle = StuffGroup:AddToggle("LookAtEnabled", {
@@ -1768,7 +1766,7 @@ local function setupBulletTP()
 end
 
 -- Add Target Strafe tab
-local TargetStrafeGroup = Tabs.Combat:AddRightGroupbox("Target Strafe")
+local TargetStrafeGroup = CombatTab:AddRightGroupbox("Target Strafe")
 
 -- Main toggle for Target Strafe
 local TargetStrafeToggle = TargetStrafeGroup:AddToggle("TargetStrafeEnabled", {
@@ -1996,7 +1994,7 @@ local GunFeaturesConfig = {
 }
 
 -- Добавляем группу для функций оружия
-local GunFeaturesGroup = Tabs.Combat:AddLeftGroupbox("Gun Features")
+local GunFeaturesGroup = CombatTab:AddLeftGroupbox("Gun Features")
 
 -- AutoReload toggle
 local AutoReloadToggle = GunFeaturesGroup:AddToggle("AutoReloadEnabled", {
@@ -2144,6 +2142,113 @@ local function setupGunFeatureEvents()
     end)
 end
 
+-- Gun Features code...
+
+-- ================== COMBAT END ==================
+
+-- ================== MOVEMENT START ==================
+
+-- Группбокс для Anti Ground
+local AntiGroundGroup = MovementTab:AddLeftGroupbox("Anti Ground")
+
+-- Настройки Anti Ground
+local AntiGroundConfig = {
+    Enabled = false,
+    Height = 10
+}
+
+-- Состояние Anti Ground
+local AntiGroundState = {
+    BodyPosition = nil
+}
+
+-- Toggle для включения Anti Ground
+local AntiGroundToggle = AntiGroundGroup:AddToggle("AntiGroundEnabled", {
+    Text = "Enable",
+    Default = false,
+    Tooltip = "Поддерживать высоту над землей",
+    Callback = function(Value)
+        AntiGroundConfig.Enabled = Value
+        if not Value and AntiGroundState.BodyPosition then
+            AntiGroundState.BodyPosition:Destroy()
+            AntiGroundState.BodyPosition = nil
+        end
+    end
+})
+
+-- Слайдер для настройки высоты
+local AntiGroundHeightSlider = AntiGroundGroup:AddSlider("AntiGroundHeight", {
+    Text = "Height",
+    Default = 10,
+    Min = 1,
+    Max = 50,
+    Rounding = 0,
+    Suffix = " studs",
+    Callback = function(Value)
+        AntiGroundConfig.Height = Value
+    end
+})
+
+-- Функция для получения высоты земли под игроком
+local function getGroundHeight_AG(position, character)
+    local rayOrigin = position
+    local rayDirection = Vector3.new(0, -1000, 0)
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterDescendantsInstances = {character}
+    raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+    local raycastResult = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
+    if raycastResult then
+        return raycastResult.Position.Y
+    else
+        return position.Y - 1000
+    end
+end
+
+-- Основная функция поддержания высоты
+local function maintainAntiGround(deltaTime)
+    if not AntiGroundConfig.Enabled then
+        return
+    end
+    local character = LocalPlayer.Character
+    if not character then return end
+    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+    if not humanoidRootPart then return end
+    -- Создаем BodyPosition если его нет
+    if not AntiGroundState.BodyPosition then
+        local bp = Instance.new("BodyPosition")
+        bp.MaxForce = Vector3.new(0, 5000, 0)
+        bp.D = 500
+        bp.Parent = humanoidRootPart
+        AntiGroundState.BodyPosition = bp
+    end
+    local bodyPosition = AntiGroundState.BodyPosition
+    local currentPosition = humanoidRootPart.Position
+    local groundHeight = getGroundHeight_AG(currentPosition, character)
+    local targetHeight = groundHeight + AntiGroundConfig.Height
+    local currentBodyPosY = bodyPosition.Position.Y
+    if currentPosition.Y < targetHeight then
+        bodyPosition.Position = Vector3.new(currentPosition.X, targetHeight, currentPosition.Z)
+    else
+        local newY = math.max(targetHeight, currentBodyPosY - 10 * deltaTime)
+        bodyPosition.Position = Vector3.new(currentPosition.X, newY, currentPosition.Z)
+    end
+end
+
+-- Подключаем к Heartbeat
+RunService.Heartbeat:Connect(function(deltaTime)
+    maintainAntiGround(deltaTime)
+end)
+
+-- Обработка нового персонажа
+LocalPlayer.CharacterAdded:Connect(function(character)
+    if AntiGroundState.BodyPosition then
+        AntiGroundState.BodyPosition:Destroy()
+        AntiGroundState.BodyPosition = nil
+    end
+end)
+
+-- ================== MOVEMENT END ==================
+
 -- Initialize aimbot
 initEntityStates()
 setupAimbot()
@@ -2228,6 +2333,12 @@ game:BindToClose(function()
                 end
             end
         end
+    end
+    
+    -- Очистка Anti Ground
+    if AntiGroundState.BodyPosition then
+        AntiGroundState.BodyPosition:Destroy()
+        AntiGroundState.BodyPosition = nil
     end
 end)
 
