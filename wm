@@ -1,6 +1,40 @@
+local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
+local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
+local ThemeManager = loadstring(game:HttpGet(repo .. "addons/ThemeManager.lua"))()
+local SaveManager = loadstring(game:HttpGet(repo .. "addons/SaveManager.lua"))()
+
+-- Create the main window
+local Window = Library:CreateWindow({
+    Title = "TitanCX",
+    Footer = "Cursed by 32vision",
+    ShowCustomCursor = false,
+})
+
+-- Create tabs
+local Tabs = {
+    Combat = Window:AddTab("Combat", "sword"),
+    Movement = Window:AddTab("Movement", "move"),
+    Visuals = Window:AddTab("Visuals", "eye"),
+    Misc = Window:AddTab("Misc", "box"),
+    Other = Window:AddTab("Other", "list"),
+    HUD = Window:AddTab("HUD", "monitor"),
+}
+
+-- Setup ThemeManager and SaveManager
+ThemeManager:SetLibrary(Library)
+SaveManager:SetLibrary(Library)
+SaveManager:IgnoreThemeSettings()
+SaveManager:SetIgnoreIndexes({ "MenuKeybind" })
+
+ThemeManager:SetFolder("ClickGUI")
+SaveManager:SetFolder("ClickGUI/settings")
+
+SaveManager:BuildConfigSection(Tabs["HUD"])
+ThemeManager:ApplyToTab(Tabs["HUD"])
+
 -- Silent Aim Configuration
 local SilentAimConfig = {
-	Enabled = true, -- Master switch
+	Enabled = true, -- Master switch (изменено обратно на true)
 	Keybind = Enum.KeyCode.Q, -- Key to select or deselect target
 	AimPart = "HumanoidRootPart", -- Default aim part
 	MultipleParts = {
@@ -8,13 +42,13 @@ local SilentAimConfig = {
 		Parts = { "Head", "UpperTorso", "HumanoidRootPart", "LowerTorso" }
 	},
 	Prediction = {
-		Enabled = true,
-		Type = "CFrame", -- Resolver modes: Vel, MoveDir, CFrame, Juju
-		PredictionXZ = 0.12362, -- Horizontal prediction factor (for non-Juju resolvers)
-		PredictionY = 0.12362, -- Vertical prediction factor (for non-Juju resolvers)
-		Juju = {
-			ResolverRefresh = 2, -- Refresh rate in milliseconds for Juju resolver (more frequent updates)
-			PredictionFactor = 0.12362 -- Scaling factor for Juju predicted velocity
+		Enabled = true, -- Изменено обратно на true
+		Type = "CFrame", -- Resolver modes: Vel, MoveDir, CFrame, Velmodded
+		PredictionXZ = 0.12362, -- Horizontal prediction factor (for non-Velmodded resolvers)
+		PredictionY = 0.12362, -- Vertical prediction factor (for non-Velmodded resolvers)
+		Velmodded = {
+			ResolverRefresh = 2, -- Refresh rate in milliseconds for Velmodded resolver (more frequent updates)
+			PredictionFactor = 0.12362 -- Scaling factor for Velmodded predicted velocity
 		}
 	},
 	Offsets = {
@@ -27,6 +61,192 @@ local SilentAimConfig = {
 		ResetTargetOnLocalDeath = false -- Reset target when local player dies
 	}
 }
+
+-- Add UI elements for Combat/Aimbot
+local AimbotGroup = Tabs.Combat:AddLeftGroupbox("Aimbot")
+
+-- Main toggle
+local AimbotToggle = AimbotGroup:AddToggle("AimbotEnabled", {
+    Text = "Enable",
+    Default = true,
+    Tooltip = "Toggle aimbot",
+    Callback = function(Value)
+        SilentAimConfig.Enabled = Value
+    end
+})
+
+-- Keybind
+local AimbotKey = AimbotToggle:AddKeyPicker("AimbotKey", {
+    Default = "Q",
+    SyncToggleState = false,
+    Mode = "Toggle",
+    Text = "Lock Key",
+    Callback = function(Value)
+        -- Проверяем тип данных для предотвращения ошибки
+        if type(Value) == "table" and Value.Name then
+            -- Сохраняем значение кнопки как строку для UI и как Enum.KeyCode для обработчика
+            local keyCode = Value.Name
+            SilentAimConfig.KeybindName = keyCode -- Храним строковое представление
+            SilentAimConfig.Keybind = Enum.KeyCode[keyCode] -- Преобразуем в Enum.KeyCode
+            
+            Library:Notify("Key set to " .. keyCode, 1.5)
+        end
+    end
+})
+
+-- Target part
+local TargetPartDropdown = AimbotGroup:AddDropdown("TargetPart", {
+    Values = {"Head", "HumanoidRootPart", "UpperTorso", "LowerTorso"},
+    Default = SilentAimConfig.AimPart,
+    Text = "Target Part",
+    Tooltip = "Body part to aim at",
+    Callback = function(Value)
+        SilentAimConfig.AimPart = Value
+    end
+})
+
+-- Prediction settings
+local PredictionToggle = AimbotGroup:AddToggle("PredictionEnabled", {
+    Text = "Prediction",
+    Default = true,
+    Tooltip = "Predict movement",
+    Callback = function(Value)
+        SilentAimConfig.Prediction.Enabled = Value
+    end
+})
+
+local PredictionTypeDropdown = AimbotGroup:AddDropdown("PredictionType", {
+    Values = {"Vel", "MoveDir", "CFrame", "Velmodded"},
+    Default = SilentAimConfig.Prediction.Type,
+    Text = "Method",
+    Tooltip = "Prediction calculation method",
+    Callback = function(Value)
+        SilentAimConfig.Prediction.Type = Value
+    end
+})
+
+-- Replace XZPredictionSlider with Input
+local XZPredictionInput = AimbotGroup:AddInput("PredictionXZ", {
+    Text = "XZ Factor",
+    Default = tostring(SilentAimConfig.Prediction.PredictionXZ),
+    Numeric = true,
+    Finished = true,
+    Placeholder = "Value...",
+    Tooltip = "Horizontal prediction",
+    Callback = function(Value)
+        local num = tonumber(Value)
+        if num then
+            SilentAimConfig.Prediction.PredictionXZ = num
+            Library:Notify("XZ set to " .. num, 1.5)
+        end
+    end
+})
+
+-- Replace YPredictionSlider with Input
+local YPredictionInput = AimbotGroup:AddInput("PredictionY", {
+    Text = "Y Factor",
+    Default = tostring(SilentAimConfig.Prediction.PredictionY),
+    Numeric = true,
+    Finished = true,
+    Placeholder = "Value...",
+    Tooltip = "Vertical prediction",
+    Callback = function(Value)
+        local num = tonumber(Value)
+        if num then
+            SilentAimConfig.Prediction.PredictionY = num
+            Library:Notify("Y set to " .. num, 1.5)
+        end
+    end
+})
+
+-- Velmodded settings
+local VelmoddedGroup = Tabs.Combat:AddRightGroupbox("Advanced")
+
+local ResolverRefreshSlider = VelmoddedGroup:AddSlider("ResolverRefresh", {
+    Text = "Refresh",
+    Default = SilentAimConfig.Prediction.Velmodded.ResolverRefresh,
+    Min = 1,
+    Max = 10,
+    Rounding = 0,
+    Suffix = "ms",
+    Callback = function(Value)
+        SilentAimConfig.Prediction.Velmodded.ResolverRefresh = Value
+    end
+})
+
+-- Replace PredictionFactorSlider with Input
+local PredictionFactorInput = VelmoddedGroup:AddInput("PredictionFactor", {
+    Text = "Factor",
+    Default = tostring(SilentAimConfig.Prediction.Velmodded.PredictionFactor),
+    Numeric = true,
+    Finished = true,
+    Placeholder = "Value...",
+    Tooltip = "Prediction multiplier",
+    Callback = function(Value)
+        local num = tonumber(Value)
+        if num then
+            SilentAimConfig.Prediction.Velmodded.PredictionFactor = num
+            Library:Notify("Factor set to " .. num, 1.5)
+        end
+    end
+})
+
+-- Offset settings
+local OffsetGroup = Tabs.Combat:AddRightGroupbox("Offsets")
+
+local JumpOffsetSlider = OffsetGroup:AddSlider("JumpOffset", {
+    Text = "Jump",
+    Default = SilentAimConfig.Offsets.Jump,
+    Min = -5,
+    Max = 5,
+    Rounding = 2,
+    Suffix = " studs",
+    Callback = function(Value)
+        SilentAimConfig.Offsets.Jump = Value
+    end
+})
+
+local FallOffsetSlider = OffsetGroup:AddSlider("FallOffset", {
+    Text = "Fall",
+    Default = SilentAimConfig.Offsets.Fall,
+    Min = -5,
+    Max = 5,
+    Rounding = 2,
+    Suffix = " studs",
+    Callback = function(Value)
+        SilentAimConfig.Offsets.Fall = Value
+    end
+})
+
+-- Checks
+local ChecksGroup = Tabs.Combat:AddLeftGroupbox("Checks")
+
+local WallCheckToggle = ChecksGroup:AddToggle("WallCheck", {
+    Text = "Visibility",
+    Default = SilentAimConfig.Checks.WallCheck,
+    Tooltip = "Target must be visible",
+    Callback = function(Value)
+        SilentAimConfig.Checks.WallCheck = Value
+    end
+})
+
+local TargetDeathToggle = ChecksGroup:AddToggle("TargetDeath", {
+    Text = "Target Death",
+    Default = SilentAimConfig.Checks.TargetDeath,
+    Tooltip = "Reset on target death",
+    Callback = function(Value)
+        SilentAimConfig.Checks.TargetDeath = Value
+    end
+})
+
+local ResetOnDeathToggle = ChecksGroup:AddToggle("ResetOnDeath", {
+    Text = "Local Death",
+    Default = SilentAimConfig.Checks.ResetTargetOnLocalDeath,
+    Tooltip = "Reset when you die",
+    Callback = function(Value)
+        SilentAimConfig.Checks.ResetTargetOnLocalDeath = Value
+    end
+})
 
 -- Services
 local Players = game:GetService("Players")
@@ -45,7 +265,7 @@ local selectedTarget = nil -- Currently selected target (player or bot)
 local lastPosition = nil -- For resolver calculations
 local lastUpdateTime = nil -- For resolver timing
 local predictedPosition = nil -- Predicted target position
-local jujuState = { -- Juju resolver state
+local velmoddedState = { -- Velmodded resolver state
 	target = nil,
 	last_position = nil,
 	last_refresh = tick(),
@@ -77,9 +297,9 @@ local function initEntityStates()
 	Players.PlayerRemoving:Connect(function(player)
 		if entityStates[player] and entityStates[player].isTarget and SilentAimConfig.Checks.TargetDeath then
 			selectedTarget = nil
-			jujuState.target = nil
-			jujuState.last_position = nil
-			jujuState.target_velocity = Vector3.zero
+			velmoddedState.target = nil
+			velmoddedState.last_position = nil
+			velmoddedState.target_velocity = Vector3.zero
 		end
 		entityStates[player] = nil
 	end)
@@ -98,9 +318,9 @@ local function initEntityStates()
 	BotsFolder.ChildRemoved:Connect(function(bot)
 		if entityStates[bot] and entityStates[bot].isTarget and SilentAimConfig.Checks.TargetDeath then
 			selectedTarget = nil
-			jujuState.target = nil
-			jujuState.last_position = nil
-			jujuState.target_velocity = Vector3.zero
+			velmoddedState.target = nil
+			velmoddedState.last_position = nil
+			velmoddedState.target_velocity = Vector3.zero
 		end
 		entityStates[bot] = nil
 	end)
@@ -202,8 +422,8 @@ local function getClosestEntityToCursor()
 	return closestEntity
 end
 
--- Juju Resolver
-local function jujuResolver(targetEntity)
+-- Velmodded Resolver
+local function velmoddedResolver(targetEntity)
 	local character = targetEntity:IsA("Player") and targetEntity.Character or targetEntity
 	if not character or not character:FindFirstChild(SilentAimConfig.AimPart) then
 		return nil
@@ -211,19 +431,19 @@ local function jujuResolver(targetEntity)
 	
 	local aimPart = character[SilentAimConfig.AimPart]
 	local currentTime = tick()
-	local deltaTime = currentTime - jujuState.last_refresh
+	local deltaTime = currentTime - velmoddedState.last_refresh
 	
-	if deltaTime > SilentAimConfig.Prediction.Juju.ResolverRefresh / 1000 then
-		if not jujuState.last_position then
-			jujuState.last_position = aimPart.Position
+	if deltaTime > SilentAimConfig.Prediction.Velmodded.ResolverRefresh / 1000 then
+		if not velmoddedState.last_position then
+			velmoddedState.last_position = aimPart.Position
 		else
-			jujuState.target_velocity = (aimPart.Position - jujuState.last_position) / deltaTime
-			jujuState.last_position = aimPart.Position
+			velmoddedState.target_velocity = (aimPart.Position - velmoddedState.last_position) / deltaTime
+			velmoddedState.last_position = aimPart.Position
 		end
-		jujuState.last_refresh = currentTime
+		velmoddedState.last_refresh = currentTime
 	end
 	
-	return aimPart.Position + (jujuState.target_velocity * SilentAimConfig.Prediction.Juju.PredictionFactor)
+	return aimPart.Position + (velmoddedState.target_velocity * SilentAimConfig.Prediction.Velmodded.PredictionFactor)
 end
 
 -- Predict target position
@@ -239,9 +459,9 @@ local function getPredictedPosition(targetEntity)
 		return aimPartPos
 	end
 	
-	if SilentAimConfig.Prediction.Type == "Juju" then
-		jujuState.target = targetEntity
-		return jujuResolver(targetEntity)
+	if SilentAimConfig.Prediction.Type == "Velmodded" then
+		velmoddedState.target = targetEntity
+		return velmoddedResolver(targetEntity)
 	end
 	
 	if not lastPosition or not lastUpdateTime then
@@ -296,9 +516,9 @@ local function setupAimbot()
 					if SilentAimConfig.Checks.TargetDeath and character:FindFirstChild("Humanoid").Health <= 0 then
 						entityStates[selectedTarget].isTarget = false
 						selectedTarget = nil
-						jujuState.target = nil
-						jujuState.last_position = nil
-						jujuState.target_velocity = Vector3.zero
+						velmoddedState.target = nil
+						velmoddedState.last_position = nil
+						velmoddedState.target_velocity = Vector3.zero
 						return oldIndex(self, key)
 					end
 					
@@ -326,27 +546,52 @@ local function setupAimbot()
 	setreadonly(mt, true)
 end
 
+-- Функция для получения имени цели
+local function getTargetName(entity)
+    if entity:IsA("Player") then
+        return entity.Name
+    elseif entity:IsA("Model") then
+        return entity.Name
+    end
+    return "Target"
+end
+
 -- Handle keybind for target selection
 local function setupKeybind()
 	UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		if gameProcessed then return end
-		if input.KeyCode == SilentAimConfig.Keybind then
-			if selectedTarget and entityStates[selectedTarget].isTarget then
+		
+		local keyCode = SilentAimConfig.Keybind
+		if typeof(keyCode) == "string" then
+			keyCode = Enum.KeyCode[keyCode]
+		end
+		
+		if input.KeyCode == keyCode then
+			if selectedTarget and entityStates[selectedTarget] and entityStates[selectedTarget].isTarget then
 				-- Deselect current target
 				entityStates[selectedTarget].isTarget = false
+				local targetName = getTargetName(selectedTarget)
 				selectedTarget = nil
-				jujuState.target = nil
-				jujuState.last_position = nil
-				jujuState.target_velocity = Vector3.zero
+				velmoddedState.target = nil
+				velmoddedState.last_position = nil
+				velmoddedState.target_velocity = Vector3.zero
+				
+				Library:Notify("Aimbot unlocked", 1.5)
 			else
 				-- Select new target
 				local closestEntity = getClosestEntityToCursor()
 				if closestEntity then
 					selectedTarget = closestEntity
 					entityStates[selectedTarget].isTarget = true
-					if SilentAimConfig.Prediction.Type == "Juju" then
-						jujuState.target = selectedTarget
+					local targetName = getTargetName(selectedTarget)
+					
+					if SilentAimConfig.Prediction.Type == "Velmodded" then
+						velmoddedState.target = selectedTarget
 					end
+					
+					Library:Notify("Aimbot locked to " .. targetName, 1.5)
+				else
+					Library:Notify("No target found", 1.5)
 				end
 			end
 		end
@@ -373,9 +618,9 @@ local function setupCharacterHandling()
 		if selectedTarget and SilentAimConfig.Checks.ResetTargetOnLocalDeath then
 			entityStates[selectedTarget].isTarget = false
 			selectedTarget = nil
-			jujuState.target = nil
-			jujuState.last_position = nil
-			jujuState.target_velocity = Vector3.zero
+			velmoddedState.target = nil
+			velmoddedState.last_position = nil
+			velmoddedState.target_velocity = Vector3.zero
 		end
 	end)
 end
@@ -385,3 +630,6 @@ initEntityStates()
 setupAimbot()
 setupKeybind()
 setupCharacterHandling()
+
+-- Show the UI
+Library:Toggle(true)
