@@ -9,16 +9,16 @@ local SilentAimConfig = {
 	},
 	Prediction = {
 		Enabled = true,
-		Type = "Juju", -- Resolver modes: Vel, MoveDir, CFrame, Juju
-		PredictionXZ = 0.1443376, -- Horizontal prediction factor (for non-Juju resolvers)
-		PredictionY = 0.1443376, -- Vertical prediction factor (for non-Juju resolvers)
+		Type = "CFrame", -- Resolver modes: Vel, MoveDir, CFrame, Juju
+		PredictionXZ = 0.12362, -- Horizontal prediction factor (for non-Juju resolvers)
+		PredictionY = 0.12362, -- Vertical prediction factor (for non-Juju resolvers)
 		Juju = {
-			ResolverRefresh = 10, -- Refresh rate in milliseconds for Juju resolver (more frequent updates)
-			PredictionFactor = 0.1443376 -- Scaling factor for Juju predicted velocity
+			ResolverRefresh = 2, -- Refresh rate in milliseconds for Juju resolver (more frequent updates)
+			PredictionFactor = 0.12362 -- Scaling factor for Juju predicted velocity
 		}
 	},
 	Offsets = {
-		Jump = 0.4, -- Y offset for jumping targets
+		Jump = 0, -- Y offset for jumping targets
 		Fall = 0  -- Y offset for falling targets
 	},
 	Checks = {
