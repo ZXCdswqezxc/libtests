@@ -42,13 +42,13 @@ local SilentAimConfig = {
 		Parts = { "Head", "UpperTorso", "HumanoidRootPart", "LowerTorso" }
 	},
 	Prediction = {
-		Enabled = true, -- Изменено обратно на true
+		Enabled = true, -- Включено предсказание
 		Type = "CFrame", -- Resolver modes: Vel, MoveDir, CFrame, Velmodded
-		PredictionXZ = 0.12362, -- Horizontal prediction factor (for non-Velmodded resolvers)
-		PredictionY = 0.12362, -- Vertical prediction factor (for non-Velmodded resolvers)
+		PredictionXZ = 0, -- Horizontal prediction factor (for non-Velmodded resolvers)
+		PredictionY = 0, -- Vertical prediction factor (for non-Velmodded resolvers)
 		Velmodded = {
 			ResolverRefresh = 2, -- Refresh rate in milliseconds for Velmodded resolver (more frequent updates)
-			PredictionFactor = 0.12362 -- Scaling factor for Velmodded predicted velocity
+			PredictionFactor = 0 -- Scaling factor for Velmodded predicted velocity
 		}
 	},
 	Offsets = {
@@ -61,6 +61,9 @@ local SilentAimConfig = {
 		ResetTargetOnLocalDeath = false, -- Reset target when local player dies
 		KOCheck = false, -- Check if target is knocked out
 		GrabbedCheck = false -- Check if target is grabbed
+	},
+	BulletTP = {
+		Enabled = false, -- Simple on/off toggle
 	}
 }
 
@@ -291,6 +294,33 @@ local GrabbedCheckToggle = ChecksGroup:AddToggle("GrabbedCheck", {
 -- Add Extra group with AutoStomp
 local ExtraGroup = Tabs.Combat:AddRightGroupbox("Extra")
 
+-- Add BulletTP group
+local BulletTPGroup = Tabs.Combat:AddLeftGroupbox("Bullet TP")
+
+-- Main toggle
+local BulletTPToggle = BulletTPGroup:AddToggle("BulletTPEnabled", {
+    Text = "Enable",
+    Default = SilentAimConfig.BulletTP.Enabled,
+    Tooltip = "Teleport bullets to aimbot target (uses same prediction settings as aimbot)",
+    Callback = function(Value)
+        SilentAimConfig.BulletTP.Enabled = Value
+        Library:Notify("Bullet TP " .. (Value and "enabled" or "disabled"), 1.5)
+    end
+})
+
+-- Add Keybind to BulletTP toggle
+local BulletTPKey = BulletTPToggle:AddKeyPicker("BulletTPKey", {
+    Default = "C",
+    SyncToggleState = true,
+    Mode = "Toggle",
+    Text = "Toggle Key",
+    Callback = function(Value)
+        SilentAimConfig.BulletTP.Enabled = Value
+        Library:Notify("Bullet TP " .. (Value and "enabled" or "disabled"), 1.5)
+    end
+})
+
+-- AutoStomp UI
 local AutoStompToggle = ExtraGroup:AddToggle("AutoStompEnabled", {
     Text = "Auto Stomp",
     Default = AutoStompConfig.Enabled,
@@ -1022,11 +1052,220 @@ local function setupCharacterHandling()
 	end)
 end
 
+-- BulletTP functions
+local BulletTP = {
+    Connection = nil,
+    LastTool = nil,
+    ToolConnections = {}
+}
+
+-- Функция для расчета смещения Grip
+local function calculateGripOffset(origin, target)
+    local actualOrigin = origin * CFrame.new(0, -1, 0, 1, 0, 0, 0, 0, 1, 0, -1, 0)
+    return actualOrigin:ToObjectSpace(target):inverse()
+end
+
+-- Функция телепортации пули
+local function teleportBullet(tool)
+    if not SilentAimConfig.BulletTP.Enabled or not tool or not LocalPlayer.Character then 
+        return 
+    end
+    
+    -- Используем только цель аимбота
+    if not selectedTarget or not entityStates[selectedTarget] or not entityStates[selectedTarget].isTarget then
+        -- Если цель не выбрана, ничего не делаем
+        return
+    end
+    
+    local character = selectedTarget:IsA("Player") and selectedTarget.Character or selectedTarget
+    if not character then return end
+    
+    -- Используем тот же AimPart, что и в аимботе
+    local targetPart = character:FindFirstChild(SilentAimConfig.AimPart)
+    if not targetPart then return end
+    
+    -- Получаем позицию с учетом предсказания из аимбота
+    local targetPosition
+    if SilentAimConfig.Prediction.Enabled then
+        targetPosition = getPredictedPosition(selectedTarget)
+    else
+        targetPosition = targetPart.Position
+    end
+    
+    if not targetPosition then return end
+    
+    -- Добавляем смещения для прыжка/падения
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    if humanoid then
+        if humanoid:GetState() == Enum.HumanoidStateType.Jumping then
+            targetPosition = targetPosition + Vector3.new(0, SilentAimConfig.Offsets.Jump, 0)
+        elseif humanoid:GetState() == Enum.HumanoidStateType.Freefall then
+            targetPosition = targetPosition + Vector3.new(0, SilentAimConfig.Offsets.Fall, 0)
+        end
+    end
+    
+    local targetCFrame = CFrame.new(targetPosition)
+    
+    -- Меняем Grip оружия для телепортации пули
+    local originPart = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("RightHand")
+    if originPart then
+        local originalGrip = tool.Grip
+        
+        tool.Parent = LocalPlayer.Backpack
+        tool.Grip = calculateGripOffset(originPart.CFrame, targetCFrame)
+        tool.Parent = LocalPlayer.Character
+        RunService.RenderStepped:Wait()
+        tool.Parent = LocalPlayer.Backpack
+        tool.Grip = originalGrip
+        tool.Parent = LocalPlayer.Character
+    end
+end
+
+-- Настройка BulletTP через переопределение метатаблицы
+local function setupBulletTPMetatable()
+    local mt = getrawmetatable(game)
+    local oldIndex = mt.__index
+    setreadonly(mt, false)
+    
+    -- Переопределяем метатаблицу для перехвата Mouse.Hit/Mouse.Target
+    mt.__index = newcclosure(function(self, key)
+        -- Проверяем оригинальное поведение аимбота
+        local result = oldIndex(self, key)
+        
+        -- Добавляем логику BulletTP
+        if not checkcaller() and self == LocalPlayer:GetMouse() and SilentAimConfig.BulletTP.Enabled and (key == "Hit" or key == "Target") then
+            if selectedTarget and entityStates[selectedTarget] and entityStates[selectedTarget].isTarget then
+                local character = selectedTarget:IsA("Player") and selectedTarget.Character or selectedTarget
+                if character then
+                    local targetPart = character:FindFirstChild(SilentAimConfig.AimPart)
+                    if targetPart then
+                        -- Получаем позицию с учетом предсказания
+                        local targetPosition
+                        if SilentAimConfig.Prediction.Enabled then
+                            targetPosition = getPredictedPosition(selectedTarget)
+                        else
+                            targetPosition = targetPart.Position
+                        end
+                        
+                        if targetPosition then
+                            -- Добавляем смещения для прыжка/падения
+                            local humanoid = character:FindFirstChildOfClass("Humanoid")
+                            if humanoid then
+                                if humanoid:GetState() == Enum.HumanoidStateType.Jumping then
+                                    targetPosition = targetPosition + Vector3.new(0, SilentAimConfig.Offsets.Jump, 0)
+                                elseif humanoid:GetState() == Enum.HumanoidStateType.Freefall then
+                                    targetPosition = targetPosition + Vector3.new(0, SilentAimConfig.Offsets.Fall, 0)
+                                end
+                            end
+                            
+                            if key == "Hit" then
+                                return CFrame.new(targetPosition)
+                            elseif key == "Target" then
+                                return targetPart
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        
+        return result
+    end)
+    
+    setreadonly(mt, true)
+end
+
+-- Обработка инструментов для BulletTP
+local function handleTool(tool)
+    if not tool:IsA("Tool") then return end
+    
+    -- Отключаем все существующие соединения с Grip
+    for _, conn in pairs(getconnections(tool:GetPropertyChangedSignal("Grip"))) do
+        conn:Disable()
+    end
+    
+    -- Отключаем старые соединения для этого инструмента
+    if BulletTP.ToolConnections[tool] then
+        BulletTP.ToolConnections[tool]:Disconnect()
+        BulletTP.ToolConnections[tool] = nil
+    end
+    
+    -- Создаем новое соединение на активацию (выстрел)
+    BulletTP.ToolConnections[tool] = tool.Activated:Connect(function()
+        if SilentAimConfig.BulletTP.Enabled then
+            teleportBullet(tool)
+        end
+    end)
+end
+
+-- Настройка BulletTP для персонажа
+local function setupBulletTPCharacter(character)
+    if not character then return end
+    
+    -- Обрабатываем текущие инструменты
+    for _, child in pairs(character:GetChildren()) do
+        if child:IsA("Tool") then
+            handleTool(child)
+        end
+    end
+    
+    -- Подключаемся к добавлению новых инструментов
+    local connection = character.ChildAdded:Connect(function(child)
+        if child:IsA("Tool") then
+            handleTool(child)
+        end
+    end)
+    
+    -- Сохраняем соединение для последующей очистки
+    if BulletTP.Connection then
+        BulletTP.Connection:Disconnect()
+    end
+    BulletTP.Connection = connection
+    
+    -- Подключаемся к удалению инструментов
+    character.ChildRemoved:Connect(function(child)
+        if child:IsA("Tool") and BulletTP.ToolConnections[child] then
+            BulletTP.ToolConnections[child]:Disconnect()
+            BulletTP.ToolConnections[child] = nil
+        end
+    end)
+end
+
+-- Инициализация BulletTP
+local function setupBulletTP()
+    -- Настраиваем метатаблицу
+    setupBulletTPMetatable()
+    
+    -- Настраиваем обработку для текущего персонажа
+    if LocalPlayer.Character then
+        setupBulletTPCharacter(LocalPlayer.Character)
+    end
+    
+    -- Подключаемся к появлению нового персонажа
+    LocalPlayer.CharacterAdded:Connect(function(character)
+        setupBulletTPCharacter(character)
+    end)
+    
+    -- Очищаем соединения при удалении персонажа
+    LocalPlayer.CharacterRemoving:Connect(function()
+        if BulletTP.Connection then
+            BulletTP.Connection:Disconnect()
+            BulletTP.Connection = nil
+        end
+        
+        for tool, conn in pairs(BulletTP.ToolConnections) do
+            conn:Disconnect()
+            BulletTP.ToolConnections[tool] = nil
+        end
+    end)
+end
+
 -- Initialize aimbot
 initEntityStates()
 setupAimbot()
 setupKeybind()
 setupCharacterHandling()
+setupBulletTP() -- Инициализируем BulletTP мониторинг
 
 -- Connect AutoStomp function to RunService
 local autoStompConnection = RunService.Heartbeat:Connect(applyDesyncStomp)
@@ -1036,6 +1275,15 @@ game:BindToClose(function()
     if autoStompConnection then
         autoStompConnection:Disconnect()
     end
+    
+    if BulletTP.Connection then
+        BulletTP.Connection:Disconnect()
+    end
+    
+    for tool, conn in pairs(BulletTP.ToolConnections) do
+        conn:Disconnect()
+    end
+    
     cleanupDesync()
 end)
 
