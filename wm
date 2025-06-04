@@ -64,6 +64,9 @@ local SilentAimConfig = {
 	},
 	BulletTP = {
 		Enabled = false, -- Simple on/off toggle
+	},
+	LookAt = {
+		Enabled = false -- Поворачивать персонажа в сторону цели
 	}
 }
 
@@ -317,6 +320,27 @@ local BulletTPKey = BulletTPToggle:AddKeyPicker("BulletTPKey", {
     Callback = function(Value)
         SilentAimConfig.BulletTP.Enabled = Value
         Library:Notify("Bullet TP " .. (Value and "enabled" or "disabled"), 1.5)
+    end
+})
+
+-- Add Stuff group
+local StuffGroup = Tabs.Combat:AddLeftGroupbox("Stuff")
+
+-- Target Look toggle
+local LookAtToggle = StuffGroup:AddToggle("LookAtEnabled", {
+    Text = "Target Look",
+    Default = SilentAimConfig.LookAt.Enabled,
+    Tooltip = "Turn character towards target",
+    Callback = function(Value)
+        SilentAimConfig.LookAt.Enabled = Value
+        
+        -- Управление AutoRotate
+        local character = LocalPlayer.Character
+        if character and character:FindFirstChildOfClass("Humanoid") then
+            character:FindFirstChildOfClass("Humanoid").AutoRotate = not Value
+        end
+        
+        Library:Notify("Target Look " .. (Value and "enabled" or "disabled"), 1.5)
     end
 })
 
@@ -692,6 +716,41 @@ local function applyDesyncStomp()
     end
 end
 
+-- Function to make character look at target
+local function lookAtTarget()
+    if not SilentAimConfig.LookAt.Enabled or not selectedTarget or not entityStates[selectedTarget] or not entityStates[selectedTarget].isTarget then
+        -- Если функция отключена, но AutoRotate всё ещё false, включаем его обратно
+        local character = LocalPlayer.Character
+        if character and character:FindFirstChildOfClass("Humanoid") and character:FindFirstChildOfClass("Humanoid").AutoRotate == false then
+            character:FindFirstChildOfClass("Humanoid").AutoRotate = true
+        end
+        return
+    end
+    
+    local character = LocalPlayer.Character
+    if not character or not character:FindFirstChild("HumanoidRootPart") then
+        return
+    end
+    
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    if humanoid and humanoid.AutoRotate then
+        humanoid.AutoRotate = false
+    end
+    
+    local targetCharacter = selectedTarget:IsA("Player") and selectedTarget.Character or selectedTarget
+    if not targetCharacter or not targetCharacter:FindFirstChild(SilentAimConfig.AimPart) then
+        return
+    end
+    
+    local targetPos = targetCharacter[SilentAimConfig.AimPart].Position
+    local localPos = character.HumanoidRootPart.Position
+    
+    -- Только поворот в горизонтальной плоскости (меняем только YAW)
+    local direction = (targetPos - localPos).Unit
+    direction = Vector3.new(direction.X, 0, direction.Z).Unit
+    character.HumanoidRootPart.CFrame = CFrame.new(localPos, localPos + direction)
+end
+
 -- Initialize entity states
 local function initEntityStates()
 	-- Initialize players
@@ -1049,6 +1108,14 @@ local function setupCharacterHandling()
 			velmoddedState.last_position = nil
 			velmoddedState.target_velocity = Vector3.zero
 		end
+		
+		-- Отключаем AutoRotate, если LookAt включен
+		if SilentAimConfig.LookAt.Enabled then
+		    local humanoid = character:WaitForChild("Humanoid", 1)
+		    if humanoid then
+		        humanoid.AutoRotate = false
+		    end
+		end
 	end)
 end
 
@@ -1267,13 +1334,18 @@ setupKeybind()
 setupCharacterHandling()
 setupBulletTP() -- Инициализируем BulletTP мониторинг
 
--- Connect AutoStomp function to RunService
+-- Connect functions to RunService
 local autoStompConnection = RunService.Heartbeat:Connect(applyDesyncStomp)
+local targetLookConnection = RunService.RenderStepped:Connect(lookAtTarget)
 
 -- Clean up when script is stopped
 game:BindToClose(function()
     if autoStompConnection then
         autoStompConnection:Disconnect()
+    end
+    
+    if targetLookConnection then
+        targetLookConnection:Disconnect()
     end
     
     if BulletTP.Connection then
