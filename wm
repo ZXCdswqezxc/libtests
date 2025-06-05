@@ -2148,102 +2148,98 @@ end
 
 -- ================== MOVEMENT START ==================
 
--- Группбокс для Anti Ground
-local AntiGroundGroup = MovementTab:AddLeftGroupbox("Anti Ground")
+-- Speed Hack Settings
+local SpeedHackGroup = MovementTab:AddLeftGroupbox("Speed Hack")
 
--- Настройки Anti Ground
-local AntiGroundConfig = {
+-- Конфигурация Speed Hack
+local SpeedHackConfig = {
     Enabled = false,
-    Height = 10
+    Speed = 50,
+    Keybind = "V"
 }
 
--- Состояние Anti Ground
-local AntiGroundState = {
-    BodyPosition = nil
-}
+-- Speed Hack Logic
+local speedHackConnection
+local function updateSpeedHack(character)
+    if not character then return end
+    local rootPart = character:WaitForChild("HumanoidRootPart")
+    local humanoid = character:WaitForChild("Humanoid")
+    local moveDirection = Vector3.new(0, 0, 0)
 
--- Toggle для включения Anti Ground
-local AntiGroundToggle = AntiGroundGroup:AddToggle("AntiGroundEnabled", {
-    Text = "Enable",
-    Default = false,
-    Tooltip = "Поддерживать высоту над землей",
+    if speedHackConnection then
+        speedHackConnection:Disconnect()
+    end
+
+    speedHackConnection = RunService.Heartbeat:Connect(function(deltaTime)
+        if SpeedHackConfig.Enabled then
+            local move = humanoid.MoveDirection
+            if move.Magnitude > 0 then
+                moveDirection = move.Unit * SpeedHackConfig.Speed
+                rootPart.CFrame = rootPart.CFrame + (moveDirection * deltaTime)
+            end
+        end
+    end)
+end
+
+-- Speed Hack UI Elements
+local SpeedHackToggle = SpeedHackGroup:AddToggle("SpeedHackEnabled", {
+    Text = "Enable Speed Hack",
+    Default = SpeedHackConfig.Enabled,
+    Tooltip = "Enable/Disable CFrame Speed Hack",
     Callback = function(Value)
-        AntiGroundConfig.Enabled = Value
-        if not Value and AntiGroundState.BodyPosition then
-            AntiGroundState.BodyPosition:Destroy()
-            AntiGroundState.BodyPosition = nil
+        SpeedHackConfig.Enabled = Value
+        if Value then
+            updateSpeedHack(LocalPlayer.Character)
+        elseif speedHackConnection then
+            speedHackConnection:Disconnect()
+            speedHackConnection = nil
         end
     end
 })
 
--- Слайдер для настройки высоты
-local AntiGroundHeightSlider = AntiGroundGroup:AddSlider("AntiGroundHeight", {
-    Text = "Height",
-    Default = 10,
-    Min = 1,
-    Max = 50,
-    Rounding = 0,
-    Suffix = " studs",
+local SpeedHackKeybind = SpeedHackToggle:AddKeyPicker("SpeedHackKeybind", {
+    Default = SpeedHackConfig.Keybind,
+    Mode = "Toggle",
+    Text = "Speed Hack Key",
+    NoUI = false,
     Callback = function(Value)
-        AntiGroundConfig.Height = Value
+        SpeedHackConfig.Enabled = not SpeedHackConfig.Enabled
+        SpeedHackToggle:SetValue(SpeedHackConfig.Enabled)
+        Library:Notify("Speed Hack " .. (SpeedHackConfig.Enabled and "включен" or "выключен"), 2)
+        if SpeedHackConfig.Enabled then
+            updateSpeedHack(LocalPlayer.Character)
+        elseif speedHackConnection then
+            speedHackConnection:Disconnect()
+            speedHackConnection = nil
+        end
+    end,
+    ChangedCallback = function(NewKey)
+        SpeedHackConfig.Keybind = tostring(NewKey):lower()
     end
 })
 
--- Функция для получения высоты земли под игроком
-local function getGroundHeight_AG(position, character)
-    local rayOrigin = position
-    local rayDirection = Vector3.new(0, -1000, 0)
-    local raycastParams = RaycastParams.new()
-    raycastParams.FilterDescendantsInstances = {character}
-    raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
-    local raycastResult = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
-    if raycastResult then
-        return raycastResult.Position.Y
-    else
-        return position.Y - 1000
+SpeedHackGroup:AddInput("SpeedHackSpeed", {
+    Default = tostring(SpeedHackConfig.Speed),
+    Numeric = true,
+    Finished = true,
+    Text = "Speed Value",
+    Tooltip = "Set the speed value (studs per second)",
+    Placeholder = "Enter speed...",
+    Callback = function(Value)
+        local numValue = tonumber(Value)
+        if numValue and numValue >= 0 then
+            SpeedHackConfig.Speed = numValue
+            Library:Notify("Speed set to " .. numValue, 2)
+        else
+            Library:Notify("Please enter a valid number!", 2)
+        end
     end
-end
+})
 
--- Основная функция поддержания высоты
-local function maintainAntiGround(deltaTime)
-    if not AntiGroundConfig.Enabled then
-        return
-    end
-    local character = LocalPlayer.Character
-    if not character then return end
-    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
-    if not humanoidRootPart then return end
-    -- Создаем BodyPosition если его нет
-    if not AntiGroundState.BodyPosition then
-        local bp = Instance.new("BodyPosition")
-        bp.MaxForce = Vector3.new(0, 5000, 0)
-        bp.D = 500
-        bp.Parent = humanoidRootPart
-        AntiGroundState.BodyPosition = bp
-    end
-    local bodyPosition = AntiGroundState.BodyPosition
-    local currentPosition = humanoidRootPart.Position
-    local groundHeight = getGroundHeight_AG(currentPosition, character)
-    local targetHeight = groundHeight + AntiGroundConfig.Height
-    local currentBodyPosY = bodyPosition.Position.Y
-    if currentPosition.Y < targetHeight then
-        bodyPosition.Position = Vector3.new(currentPosition.X, targetHeight, currentPosition.Z)
-    else
-        local newY = math.max(targetHeight, currentBodyPosY - 10 * deltaTime)
-        bodyPosition.Position = Vector3.new(currentPosition.X, newY, currentPosition.Z)
-    end
-end
-
--- Подключаем к Heartbeat
-RunService.Heartbeat:Connect(function(deltaTime)
-    maintainAntiGround(deltaTime)
-end)
-
--- Обработка нового персонажа
+-- Handle character respawn
 LocalPlayer.CharacterAdded:Connect(function(character)
-    if AntiGroundState.BodyPosition then
-        AntiGroundState.BodyPosition:Destroy()
-        AntiGroundState.BodyPosition = nil
+    if SpeedHackConfig.Enabled then
+        updateSpeedHack(character)
     end
 end)
 
@@ -2335,12 +2331,15 @@ game:BindToClose(function()
         end
     end
     
-    -- Очистка Anti Ground
-    if AntiGroundState.BodyPosition then
-        AntiGroundState.BodyPosition:Destroy()
-        AntiGroundState.BodyPosition = nil
+    -- Удаляем очистку AntiGround
+    
+    -- Очистка SpeedHack
+    if speedHackConnection then
+        speedHackConnection:Disconnect()
+        speedHackConnection = nil
     end
 end)
 
 -- Show the UI
 Library:Toggle(true)
+
