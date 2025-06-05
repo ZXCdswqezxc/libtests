@@ -112,16 +112,15 @@ local AutoStompConfig = {
 
 -- Target Strafe Configuration
 local TargetStrafeConfig = {
-    Enabled = false,
-    Radius = 10,
+    Enabled = false,    Radius = 10,
     Speed = 5,
     YOffset = 0,
     AvoidWalls = true,
-    LerpSpeed = 0.1,
     State = {
         Angle = 0,
         OriginalCollision = nil,
-        NoClipConnection = nil -- Для сохранения соединения NoClip
+        NoClipConnection = nil, -- Для сохранения соединения NoClip
+        StartPosition = nil -- Добавляем сохранение начальной позиции
     }
 }
 
@@ -1776,10 +1775,23 @@ local TargetStrafeToggle = TargetStrafeGroup:AddToggle("TargetStrafeEnabled", {
     Callback = function(Value)
         TargetStrafeConfig.Enabled = Value
         
-        -- Cleanup if disabling
-        if not Value then
-            -- Restore collisions
-            disableNoClip()
+        local character = LocalPlayer.Character
+        if character then
+            local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+            if humanoidRootPart then
+                if Value then
+                    -- Сохраняем начальную позицию при включении
+                    TargetStrafeConfig.State.StartPosition = humanoidRootPart.CFrame
+                else
+                    -- Восстанавливаем позицию при выключении
+                    if TargetStrafeConfig.State.StartPosition then
+                        humanoidRootPart.CFrame = TargetStrafeConfig.State.StartPosition
+                        TargetStrafeConfig.State.StartPosition = nil
+                    end
+                    -- Restore collisions
+                    disableNoClip()
+                end
+            end
         end
         
         Library:Notify("Target Strafe " .. (Value and "enabled" or "disabled"), 1.5)
@@ -1846,18 +1858,7 @@ local AvoidWallsToggle = TargetStrafeGroup:AddToggle("AvoidWallsEnabled", {
     end
 })
 
--- Smoothing slider
-local LerpSpeedSlider = TargetStrafeGroup:AddSlider("LerpSpeed", {
-    Text = "Smoothness",
-    Default = TargetStrafeConfig.LerpSpeed * 10, -- Масштабируем для UI
-    Min = 1,
-    Max = 10,
-    Rounding = 1,
-    Suffix = "",
-    Callback = function(Value)
-        TargetStrafeConfig.LerpSpeed = Value / 10 -- Преобразуем обратно для работы
-    end
-})
+
 
 -- Улучшенная функция NoClip для обхода всех объектов
 local function enableNoClip()
@@ -2250,7 +2251,7 @@ local FlyConfig = {
 local FlyLoop = nil
 
 -- Функция активации полета
-local function toggleFly(state)
+local function toggleFly(state, skipNotification)
     FlyConfig.Enabled = state
     
     -- Отключаем предыдущий цикл полета, если есть
@@ -2270,9 +2271,15 @@ local function toggleFly(state)
             if not humanoidRootPart or not humanoid then return end
             
             local speed = FlyConfig.Speed * 50
-            local velocity = Vector3.new(0, 1.2, 0)
+            local velocity = Vector3.new(0, 0, 0) -- Изначально нулевая скорость
             
             -- Определяем направление движения
+            if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+                velocity = velocity + Vector3.new(0, speed, 0)
+            end
+            if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
+                velocity = velocity + Vector3.new(0, -speed, 0)
+            end
             if UserInputService:IsKeyDown(Enum.KeyCode.W) then
                 velocity = velocity + (Camera.CoordinateFrame.lookVector * speed)
             end
@@ -2291,15 +2298,38 @@ local function toggleFly(state)
             humanoid:ChangeState("Freefall")
         end)
         
-        Library:Notify("fly on", 2)
+        if not skipNotification then
+            Library:Notify("fly on", 2)
+        end
     else
-        -- Выключаем полет
+        -- Выключаем полет и сбрасываем velocity
         local character = LocalPlayer.Character
-        if character and character:FindFirstChild("Humanoid") then
-            character.Humanoid:ChangeState("Landing")
+        if character then
+            local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+            local humanoid = character:FindFirstChild("Humanoid")
+            if humanoidRootPart then
+                -- Мгновенно обнуляем скорость и применяем мягкое падение
+                humanoidRootPart.Velocity = Vector3.new(0, -2, 0)
+                -- Создаем временное соединение для сброса горизонтальной скорости
+                local tempConn
+                tempConn = RunService.Stepped:Connect(function()
+                    if not humanoidRootPart or not humanoidRootPart.Parent then
+                        tempConn:Disconnect()
+                        return
+                    end
+                    -- Сбрасываем только горизонтальные компоненты скорости
+                    humanoidRootPart.Velocity = Vector3.new(0, humanoidRootPart.Velocity.Y, 0)
+                    tempConn:Disconnect()
+                end)
+            end
+            if humanoid then
+                humanoid:ChangeState("Landing")
+            end
         end
         
-        Library:Notify("fly off", 2)
+        if not skipNotification then
+            Library:Notify("fly off", 2)
+        end
     end
 end
 
@@ -2319,9 +2349,10 @@ local FlyKeybind = FlyToggle:AddKeyPicker("FlyKeybind", {
     Text = "Fly",
     Mode = "Toggle",
     SyncToggleState = true,
+    NoNotification = true, -- Отключаем уведомления от кнопки
+    NoUI = false,
     Callback = function(Value)
-        -- Синхронизируем с состоянием переключателя
-        FlyToggle:SetValue(Value)
+        toggleFly(Value, true) -- Используем skipNotification = true
     end
 })
 
@@ -2411,14 +2442,25 @@ game:BindToClose(function()
     end
     
     cleanupTracer()
-    
-    -- Cleanup target strafe
+      -- Cleanup target strafe
     if TargetStrafeConfig.State.BodyPosition then
         TargetStrafeConfig.State.BodyPosition:Destroy()
     end
     
     if TargetStrafeConfig.State.NoClipConnection then
         TargetStrafeConfig.State.NoClipConnection:Disconnect()
+    end
+    
+    -- Восстанавливаем позицию при выключении скрипта
+    if TargetStrafeConfig.State.StartPosition then
+        local character = LocalPlayer.Character
+        if character then
+            local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+            if humanoidRootPart then
+                humanoidRootPart.CFrame = TargetStrafeConfig.State.StartPosition
+            end
+        end
+        TargetStrafeConfig.State.StartPosition = nil
     end
     
     if TargetStrafeConfig.State.OriginalCollision then
