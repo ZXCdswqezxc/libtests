@@ -2260,11 +2260,53 @@ local function toggleFly(state, skipNotification)
         FlyLoop = nil
     end
     
-    if state then
+    -- Управление коллизией для NoClip
+    local character = LocalPlayer.Character
+    if character then
+        for _, part in ipairs(character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                if state then
+                    -- Сохраняем оригинальные значения при включении
+                    if not part:GetAttribute("OriginalCollision") then
+                        part:SetAttribute("OriginalCollision", part.CanCollide)
+                        part:SetAttribute("OriginalTouch", part.CanTouch)
+                        if part:GetAttribute("CanQuery") ~= nil then
+                            part:SetAttribute("OriginalQuery", part.CanQuery)
+                        end
+                    end
+                    -- Отключаем коллизию
+                    part.CanCollide = false
+                    part.CanTouch = false
+                    part.CanQuery = false
+                else
+                    -- Восстанавливаем оригинальные значения при выключении
+                    if part:GetAttribute("OriginalCollision") ~= nil then
+                        part.CanCollide = part:GetAttribute("OriginalCollision")
+                        part.CanTouch = part:GetAttribute("OriginalTouch")
+                        if part:GetAttribute("OriginalQuery") ~= nil then
+                            part.CanQuery = part:GetAttribute("OriginalQuery")
+                        end
+                        -- Очищаем сохраненные значения
+                        part:SetAttribute("OriginalCollision", nil)
+                        part:SetAttribute("OriginalTouch", nil)
+                        part:SetAttribute("OriginalQuery", nil)
+                    end
+                end
+            end
+        end
+    end
+      if state then
         -- Включаем полет
         FlyLoop = RunService.Stepped:Connect(function()
             local character = LocalPlayer.Character
             if not character then return end
+            
+            -- Поддерживаем NoClip состояние
+            for _, part in ipairs(character:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.CanCollide = false
+                end
+            end
             
             local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
             local humanoid = character:FindFirstChild("Humanoid")
