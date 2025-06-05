@@ -1,0 +1,767 @@
+-- Enhanced ESP Configuration
+getgenv().ESPSettings = {
+    Enabled = true,
+    MaxDistance = 10000,
+    
+    -- Box Settings
+    Boxes = {
+        Enabled = true,
+        Type = "Full", -- "Full" or "Corner"
+        Color = Color3.fromRGB(255, 255, 255),
+        Thickness = 1,
+        Filled = {
+            Enabled = true,
+            Transparency = 0.3,
+            Color = Color3.fromRGB(255, 255, 255)
+        },
+        Rainbow = true,
+        RainbowSpeed = 1,
+        -- Advanced Box Settings
+        Animate = true,
+        RotationSpeed = 300,
+        Gradient = {
+            Enabled = true,
+            ColorTop = Color3.fromRGB(255, 0, 0),
+            ColorBottom = Color3.fromRGB(0, 0, 255) 
+        },
+        Corner = {
+            Enabled = false,
+            Size = 5
+        }
+    },
+
+    -- Chams Settings
+    Chams = {
+        Enabled = true,
+        FillColor = Color3.fromRGB(255, 0, 0),
+        FillTransparency = 0.5,
+        OutlineColor = Color3.fromRGB(255, 255, 255),
+        OutlineTransparency = 0,
+        Material = Enum.Material.ForceField,
+        -- Thermal Settings
+        Thermal = {
+            Enabled = true,
+            PulseSpeed = 2,
+            MinTransparency = 0.1,
+            MaxTransparency = 0.8
+        },
+        VisibleOnly = false,
+        HardFill = false
+    },
+
+    -- Tracer Settings
+    Tracers = {
+        Enabled = true,
+        Origin = "Mouse", -- "Center", "Bottom", "Mouse"
+        Color = Color3.fromRGB(255, 255, 255),
+        Thickness = 1,
+        Transparency = 1,
+        VisibleOnly = false
+    },
+
+    -- 3D Elements
+    ThreeDimensional = {
+        TargetLine = {
+            Enabled = true,
+            Color = Color3.fromRGB(255, 0, 0),
+            Thickness = 1,
+            Transparency = 0.5
+        },
+        DirectionArrow = {
+            Enabled = true,
+            Color = Color3.fromRGB(255, 255, 0),
+            Size = 2
+        }
+    },
+
+    -- Name ESP Settings
+    Names = {
+        Enabled = true,
+        Color = Color3.fromRGB(255, 255, 255),
+        Font = Drawing.Fonts.UI,
+        Size = 13,
+        Outline = true,
+        OutlineColor = Color3.fromRGB(0, 0, 0),
+        ShowDistance = true,
+        ShowHealth = true,
+        Format = "{name} [{distance}]" -- Формат отображения текста
+    },
+
+    -- Weapon ESP
+    Weapons = {
+        Enabled = true,
+        Color = Color3.fromRGB(255, 255, 255),
+        ShowIcon = true,
+        IconScale = 0.5,
+        Position = "Bottom" -- "Bottom" or "Right"
+    },
+
+    -- Healthbar Settings
+    Healthbar = {
+        Enabled = true,
+        Position = "Left", -- "Left" or "Right"
+        Color1 = Color3.fromRGB(255, 0, 0), -- Low HP
+        Color2 = Color3.fromRGB(255, 255, 0), -- Mid HP
+        Color3 = Color3.fromRGB(0, 255, 0), -- Full HP
+        Outline = true,
+        Thickness = 1,
+        Gradient = true,
+        Text = {
+            Enabled = true,
+            ShowPercentage = true,
+            Color = Color3.fromRGB(255, 255, 255)
+        }
+    },
+
+    -- Visual Effects
+    Effects = {
+        FadeOut = {
+            Enabled = true,
+            StartDistance = 500,
+            EndDistance = 1000
+        },
+        Highlight = {
+            Enabled = false,
+            FillColor = Color3.fromRGB(255, 0, 0),
+            OutlineColor = Color3.fromRGB(255, 255, 255)
+        }
+    },
+
+    -- Team Settings
+    Team = {
+        Check = false,
+        IgnoreFriends = false,
+        Colors = {
+            Enemy = Color3.fromRGB(255, 0, 0),
+            Friendly = Color3.fromRGB(0, 255, 0),
+            Friend = Color3.fromRGB(0, 255, 255)
+        }
+    }
+}
+
+-- Local Variables
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Camera = workspace.CurrentCamera
+local LocalPlayer = Players.LocalPlayer
+local V2New = Vector2.new
+local V3New = Vector3.new
+local WTVP = Camera.WorldToViewportPoint
+local ESPObjects = {}
+local Terrain = workspace.Terrain
+local Highlight = Instance.new("Highlight")
+local tick = tick
+local sin = math.sin
+local cos = math.cos
+local rad = math.rad
+local floor = math.floor
+local clamp = math.clamp
+local LastUpdate = 0
+local UpdateInterval = 1/60 -- Ограничиваем до 60 обновлений в секунду
+local CachedPositions = {}
+local CachedHealthValues = {}
+
+-- Rainbow color function
+local function GetRainbowColor(speed)
+    return Color3.fromHSV(tick() * (speed or 1) % 1, 1, 1)
+end
+
+-- Create 3D Line
+local function Create3DLine()
+    local line = Instance.new("LineHandleAdornment")
+    line.AlwaysOnTop = true
+    line.ZIndex = 5
+    line.Transparency = 1
+    return line
+end
+
+-- Create Chams
+local function CreateChams(character)
+    local highlight = Instance.new("Highlight")
+    highlight.FillColor = ESPSettings.Chams.FillColor
+    highlight.OutlineColor = ESPSettings.Chams.OutlineColor
+    highlight.FillTransparency = ESPSettings.Chams.FillTransparency
+    highlight.OutlineTransparency = ESPSettings.Chams.OutlineTransparency
+    highlight.DepthMode = ESPSettings.Chams.VisibleOnly and Enum.HighlightDepthMode.Occluded or Enum.HighlightDepthMode.AlwaysOnTop
+    highlight.Adornee = character
+    highlight.Parent = game.CoreGui
+    return highlight
+end
+
+-- Create Direction Arrow
+local function CreateDirectionArrow()
+    local arrow = Instance.new("ConeHandleAdornment")
+    arrow.Height = 1
+    arrow.Radius = 0.5
+    arrow.Color3 = ESPSettings.ThreeDimensional.DirectionArrow.Color
+    arrow.Transparency = 0.5
+    arrow.AlwaysOnTop = true
+    arrow.ZIndex = 5
+    arrow.Adornee = workspace
+    arrow.Parent = game.CoreGui
+    return arrow
+end
+
+-- Utility Functions
+local function GetDistanceFromCamera(position)
+    return (Camera.CFrame.Position - position).Magnitude
+end
+
+local function IsOnScreen(position)
+    local screenPos, onScreen = WTVP(Camera, position)
+    return onScreen, Vector2.new(screenPos.X, screenPos.Y), screenPos.Z
+end
+
+local function GetHealth(humanoid)
+    if not humanoid then return 100, 100 end
+    return humanoid.Health, humanoid.MaxHealth
+end
+
+local function CreateDrawing(type, properties)
+    local drawing = Drawing.new(type)
+    for property, value in pairs(properties) do
+        drawing[property] = value
+    end
+    return drawing
+end
+
+-- Оптимизированная функция обновления позиций
+local function UpdateCachedPositions()
+    for player, _ in pairs(ESPObjects) do
+        if player == LocalPlayer then continue end
+        
+        local character = player.Character
+        local humanoidRootPart = character and character:FindFirstChild("HumanoidRootPart")
+        
+        if humanoidRootPart then
+            CachedPositions[player] = humanoidRootPart.Position
+        else
+            CachedPositions[player] = nil
+        end
+    end
+end
+
+-- Оптимизированная функция обновления здоровья
+local function UpdateCachedHealth()
+    for player, _ in pairs(ESPObjects) do
+        if player == LocalPlayer then continue end
+        
+        local character = player.Character
+        local humanoid = character and character:FindFirstChild("Humanoid")
+        
+        if humanoid then
+            CachedHealthValues[player] = {
+                Health = humanoid.Health,
+                MaxHealth = humanoid.MaxHealth
+            }
+        else
+            CachedHealthValues[player] = nil
+        end
+    end
+end
+
+-- ESP Object Creation
+local function CreateESPObject(player)
+    if ESPObjects[player] then return end    local drawings = {
+        -- Create corner lines for corner box mode
+        Corners = {
+            TopLeft = CreateDrawing("Line", {
+                Thickness = ESPSettings.Boxes.Thickness,
+                Color = ESPSettings.Boxes.Color,
+                Transparency = 1,
+                Visible = false
+            }),
+            TopRight = CreateDrawing("Line", {
+                Thickness = ESPSettings.Boxes.Thickness,
+                Color = ESPSettings.Boxes.Color,
+                Transparency = 1,
+                Visible = false
+            }),
+            BottomLeft = CreateDrawing("Line", {
+                Thickness = ESPSettings.Boxes.Thickness,
+                Color = ESPSettings.Boxes.Color,
+                Transparency = 1,
+                Visible = false
+            }),
+            BottomRight = CreateDrawing("Line", {
+                Thickness = ESPSettings.Boxes.Thickness,
+                Color = ESPSettings.Boxes.Color,
+                Transparency = 1,
+                Visible = false
+            })
+        },
+        Box = CreateDrawing("Square", {
+            Thickness = ESPSettings.Boxes.Thickness,
+            Color = ESPSettings.Boxes.Color,
+            Filled = ESPSettings.Boxes.Filled.Enabled,
+            Transparency = 1,
+            Visible = false
+        }),
+        BoxFill = CreateDrawing("Square", {
+            Thickness = 1,
+            Color = ESPSettings.Boxes.Filled.Color,
+            Filled = true,
+            Transparency = ESPSettings.Boxes.Filled.Transparency,
+            Visible = false
+        }),
+        Tracer = CreateDrawing("Line", {
+            Thickness = ESPSettings.Tracers.Thickness,
+            Color = ESPSettings.Tracers.Color,
+            Transparency = 1,
+            Visible = false
+        }),
+        Name = CreateDrawing("Text", {
+            Font = ESPSettings.Names.Font,
+            Size = ESPSettings.Names.Size,
+            Color = ESPSettings.Names.Color,
+            Center = true,
+            Outline = ESPSettings.Names.Outline,
+            OutlineColor = ESPSettings.Names.OutlineColor,
+            Visible = false
+        }),
+        Weapon = CreateDrawing("Text", {
+            Font = ESPSettings.Names.Font,
+            Size = ESPSettings.Names.Size,
+            Color = ESPSettings.Weapons.Color,
+            Center = true,
+            Outline = true,
+            Visible = false
+        }),
+        HealthBar = CreateDrawing("Square", {
+            Thickness = ESPSettings.Healthbar.Thickness,
+            Color = ESPSettings.Healthbar.Color3,
+            Filled = true,
+            Transparency = 1,
+            Visible = false
+        }),
+        HealthBarOutline = CreateDrawing("Square", {
+            Thickness = ESPSettings.Healthbar.Thickness,
+            Color = Color3.fromRGB(0, 0, 0),
+            Filled = false,
+            Transparency = 1,
+            Visible = false
+        }),
+        HealthText = CreateDrawing("Text", {
+            Font = ESPSettings.Names.Font,
+            Size = ESPSettings.Names.Size,
+            Color = ESPSettings.Healthbar.Text.Color,
+            Center = true,
+            Outline = true,
+            Visible = false
+        })
+    }
+
+    -- Add Chams
+    if ESPSettings.Chams.Enabled then
+        drawings.Chams = CreateChams(player.Character)
+    end
+
+    -- Add 3D Elements
+    if ESPSettings.ThreeDimensional.TargetLine.Enabled then
+        drawings.TargetLine = Create3DLine()
+    end
+
+    if ESPSettings.ThreeDimensional.DirectionArrow.Enabled then
+        drawings.DirectionArrow = CreateDirectionArrow()
+    end
+
+    if ESPSettings.Effects.Highlight.Enabled then
+        drawings.Highlight = Instance.new("Highlight")
+        drawings.Highlight.FillColor = ESPSettings.Effects.Highlight.FillColor
+        drawings.Highlight.OutlineColor = ESPSettings.Effects.Highlight.OutlineColor
+        drawings.Highlight.Parent = game.CoreGui
+    end
+
+    ESPObjects[player] = drawings
+end
+
+-- Update ESP Function
+local function UpdateESP()
+    local currentTime = tick()
+    if currentTime - LastUpdate < UpdateInterval then return end
+    LastUpdate = currentTime
+
+    -- Обновляем кэшированные значения
+    UpdateCachedPositions()
+    UpdateCachedHealth()
+
+    for player, drawings in pairs(ESPObjects) do
+        if player == LocalPlayer then continue end
+        
+        local character = player.Character
+        if not character then
+            for _, drawing in pairs(drawings) do
+                if type(drawing) == "table" then
+                    for _, cornerDrawing in pairs(drawing) do
+                        cornerDrawing.Visible = false
+                    end
+                elseif typeof(drawing) == "Instance" and drawing:IsA("Highlight") then
+                    drawing.Enabled = false
+                else
+                    drawing.Visible = false
+                end
+            end
+            continue
+        end
+
+        local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+        if not humanoidRootPart then continue end
+
+        local position = CachedPositions[player]
+        if not position then continue end
+
+        local distance = GetDistanceFromCamera(position)
+        if distance > ESPSettings.MaxDistance then
+            for _, drawing in pairs(drawings) do
+                if type(drawing) == "table" then
+                    for _, cornerDrawing in pairs(drawing) do
+                        cornerDrawing.Visible = false
+                    end
+                elseif typeof(drawing) == "Instance" and drawing:IsA("Highlight") then
+                    drawing.Enabled = false
+                else
+                    drawing.Visible = false
+                end
+            end
+            continue
+        end
+
+        local onScreen, screenPos, depth = IsOnScreen(position)
+        local healthData = CachedHealthValues[player]
+        if not healthData then continue end
+        
+        local health, maxHealth = healthData.Health, healthData.MaxHealth
+        local weapon = character:FindFirstChildWhichIsA("Tool")
+
+        -- Calculate transparency based on distance if fade is enabled
+        local transparency = 1
+        if ESPSettings.Effects.FadeOut.Enabled and distance > ESPSettings.Effects.FadeOut.StartDistance then 
+            transparency = 1 - math.clamp(
+                (distance - ESPSettings.Effects.FadeOut.StartDistance) / 
+                (ESPSettings.Effects.FadeOut.EndDistance - ESPSettings.Effects.FadeOut.StartDistance), 
+                0, 1
+            )
+        end
+
+        if onScreen then
+            -- Calculate box size and position
+            local size = humanoidRootPart.Size or Vector3.new(5, 5, 5) -- Используем дефолтный размер если Size не доступен
+            local scale_factor = (size.Y * Camera.ViewportSize.Y) / (depth * 2)
+            local boxSize = V2New((3 * scale_factor) * 0.7, (4.5 * scale_factor) * 0.9)
+            local boxPosition = V2New(screenPos.X - boxSize.X / 2, screenPos.Y - boxSize.Y / 2)
+
+            -- Calculate text scaling
+            local base_text_size = ESPSettings.Names.Size
+            local text_scale = math.clamp(scale_factor * 0.4, 0.5, 1.2) -- Scale text proportionally but with limits
+            local final_text_size = math.floor(base_text_size * text_scale)
+
+            -- Apply text sizes
+            if ESPSettings.Names.Enabled then
+                drawings.Name.Size = final_text_size
+            end
+            if ESPSettings.Weapons.Enabled then
+                drawings.Weapon.Size = final_text_size
+            end
+            if ESPSettings.Healthbar.Text.Enabled then
+                drawings.HealthText.Size = final_text_size 
+            end
+
+            -- Update Box
+            if ESPSettings.Boxes.Enabled then
+                -- Apply rainbow effect if enabled
+                if ESPSettings.Boxes.Rainbow then
+                    local rainbowColor = GetRainbowColor(ESPSettings.Boxes.RainbowSpeed)
+                    drawings.Box.Color = rainbowColor
+                    if drawings.BoxFill.Visible then
+                        drawings.BoxFill.Color = rainbowColor
+                    end
+                end
+
+                -- Apply box animation if enabled
+                if ESPSettings.Boxes.Animate then
+                    local time = tick()
+                    local scaleMultiplier = (math.sin(time * 2) * 0.05) + 1
+                    boxSize = boxSize * scaleMultiplier
+                end
+
+                drawings.Box.Size = boxSize
+                drawings.Box.Position = boxPosition
+                drawings.Box.Transparency = transparency
+                drawings.Box.Visible = true
+
+                if ESPSettings.Boxes.Filled.Enabled then
+                    drawings.BoxFill.Size = boxSize
+                    drawings.BoxFill.Position = boxPosition
+                    drawings.BoxFill.Transparency = transparency * ESPSettings.Boxes.Filled.Transparency
+                    drawings.BoxFill.Visible = true
+                else
+                    drawings.BoxFill.Visible = false
+                end
+
+                -- Update corners if enabled
+                if ESPSettings.Boxes.Corner.Enabled and drawings.Corners then
+                    local cornerSize = ESPSettings.Boxes.Corner.Size
+                    local corners = {
+                        TopLeft = {
+                            From = boxPosition,
+                            To = V2New(boxPosition.X + cornerSize, boxPosition.Y)
+                        },
+                        TopRight = {
+                            From = V2New(boxPosition.X + boxSize.X, boxPosition.Y),
+                            To = V2New(boxPosition.X + boxSize.X - cornerSize, boxPosition.Y)
+                        },
+                        BottomLeft = {
+                            From = V2New(boxPosition.X, boxPosition.Y + boxSize.Y),
+                            To = V2New(boxPosition.X + cornerSize, boxPosition.Y + boxSize.Y)
+                        },
+                        BottomRight = {
+                            From = V2New(boxPosition.X + boxSize.X, boxPosition.Y + boxSize.Y),
+                            To = V2New(boxPosition.X + boxSize.X - cornerSize, boxPosition.Y + boxSize.Y)
+                        }
+                    }
+
+                    for name, corner in pairs(corners) do
+                        local cornerDrawing = drawings.Corners[name]
+                        cornerDrawing.From = corner.From
+                        cornerDrawing.To = corner.To
+                        cornerDrawing.Transparency = transparency
+                        cornerDrawing.Visible = true
+                    end
+                end
+            else
+                drawings.Box.Visible = false
+                drawings.BoxFill.Visible = false
+                if drawings.Corners then
+                    for _, corner in pairs(drawings.Corners) do
+                        corner.Visible = false
+                    end
+                end
+            end
+
+            -- Update Name ESP
+            if ESPSettings.Names.Enabled then
+                drawings.Name.Position = V2New(screenPos.X, screenPos.Y - boxSize.Y / 2 - 15)
+                local text = player.Name
+                if ESPSettings.Names.ShowDistance then
+                    text = text .. string.format(" [%d]", math.floor(distance))
+                end
+                if ESPSettings.Names.ShowHealth then
+                    text = text .. string.format(" [%d%%]", math.floor(health / maxHealth * 100))
+                end
+                drawings.Name.Text = text
+                drawings.Name.Transparency = transparency
+                drawings.Name.Visible = true
+            else
+                drawings.Name.Visible = false
+            end
+
+            -- Update Weapon ESP
+            if ESPSettings.Weapons.Enabled then
+                drawings.Weapon.Position = V2New(screenPos.X, screenPos.Y + boxSize.Y / 2 + 5)
+                drawings.Weapon.Text = weapon and weapon.Name or "None"
+                drawings.Weapon.Transparency = transparency
+                drawings.Weapon.Visible = true
+            else
+                drawings.Weapon.Visible = false
+            end
+
+            -- Update Healthbar
+            if ESPSettings.Healthbar.Enabled then
+                local barHeight = boxSize.Y
+                local barWidth = ESPSettings.Healthbar.Thickness * 2
+                local healthPercentage = health / maxHealth
+                local barPosition = ESPSettings.Healthbar.Position == "Left" 
+                    and V2New(boxPosition.X - barWidth * 2, boxPosition.Y)
+                    or V2New(boxPosition.X + boxSize.X + barWidth, boxPosition.Y)
+
+                -- Healthbar background
+                drawings.HealthBarOutline.Size = V2New(barWidth, barHeight)
+                drawings.HealthBarOutline.Position = barPosition
+                drawings.HealthBarOutline.Transparency = transparency
+                drawings.HealthBarOutline.Visible = true
+
+                -- Main healthbar
+                drawings.HealthBar.Size = V2New(barWidth, barHeight * healthPercentage)
+                drawings.HealthBar.Position = V2New(barPosition.X, barPosition.Y + barHeight * (1 - healthPercentage))
+                drawings.HealthBar.Transparency = transparency
+
+                -- Health colors
+                if ESPSettings.Healthbar.Gradient then
+                    if healthPercentage > 0.75 then
+                        drawings.HealthBar.Color = ESPSettings.Healthbar.Color3
+                    elseif healthPercentage > 0.25 then
+                        drawings.HealthBar.Color = ESPSettings.Healthbar.Color2
+                    else
+                        drawings.HealthBar.Color = ESPSettings.Healthbar.Color1
+                    end
+                end
+                drawings.HealthBar.Visible = true
+
+                -- Health text
+                if ESPSettings.Healthbar.Text.Enabled then
+                    drawings.HealthText.Text = ESPSettings.Healthbar.Text.ShowPercentage 
+                        and string.format("%d%%", math.floor(healthPercentage * 100))
+                        or string.format("%d/%d", math.floor(health), math.floor(maxHealth))
+                    drawings.HealthText.Position = V2New(
+                        barPosition.X + barWidth / 2,
+                        barPosition.Y + barHeight - drawings.HealthText.TextBounds.Y - 2
+                    )
+                    drawings.HealthText.Transparency = transparency
+                    drawings.HealthText.Visible = true
+                else
+                    drawings.HealthText.Visible = false
+                end
+            else
+                drawings.HealthBar.Visible = false
+                drawings.HealthBarOutline.Visible = false
+                drawings.HealthText.Visible = false
+            end
+
+            -- Update Tracer
+            if ESPSettings.Tracers.Enabled then
+                local tracerStart = ESPSettings.Tracers.Origin == "Center" 
+                    and V2New(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+                    or ESPSettings.Tracers.Origin == "Bottom" 
+                        and V2New(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
+                        or game:GetService("UserInputService"):GetMouseLocation()
+
+                drawings.Tracer.From = tracerStart
+                drawings.Tracer.To = V2New(screenPos.X, screenPos.Y)
+                drawings.Tracer.Transparency = transparency
+                drawings.Tracer.Visible = true
+            else
+                drawings.Tracer.Visible = false
+            end
+
+            -- Update Chams
+            if ESPSettings.Chams.Enabled and drawings.Chams then
+                -- Update thermal effect
+                if ESPSettings.Chams.Thermal.Enabled then
+                    local pulse = (1 + sin(tick() * ESPSettings.Chams.Thermal.PulseSpeed)) / 2
+                    local transparency = ESPSettings.Chams.Thermal.MinTransparency + 
+                        (ESPSettings.Chams.Thermal.MaxTransparency - ESPSettings.Chams.Thermal.MinTransparency) * pulse
+                    
+                    drawings.Chams.FillTransparency = transparency
+                    drawings.Chams.OutlineTransparency = transparency
+                else
+                    drawings.Chams.FillTransparency = ESPSettings.Chams.FillTransparency
+                    drawings.Chams.OutlineTransparency = ESPSettings.Chams.OutlineTransparency
+                end
+            end
+
+            -- Update 3D Elements
+            if ESPSettings.ThreeDimensional.TargetLine.Enabled and drawings.TargetLine then
+                drawings.TargetLine.Visible = true
+                drawings.TargetLine.Color3 = ESPSettings.ThreeDimensional.TargetLine.Color
+                drawings.TargetLine.Transparency = ESPSettings.ThreeDimensional.TargetLine.Transparency
+                drawings.TargetLine.Thickness = ESPSettings.ThreeDimensional.TargetLine.Thickness
+                drawings.TargetLine.Length = (Camera.CFrame.Position - humanoidRootPart.Position).Magnitude
+                drawings.TargetLine.CFrame = CFrame.new(Camera.CFrame.Position, humanoidRootPart.Position)
+            end
+
+            if ESPSettings.ThreeDimensional.DirectionArrow.Enabled and drawings.DirectionArrow then
+                local direction = (humanoidRootPart.CFrame.LookVector * ESPSettings.ThreeDimensional.DirectionArrow.Size)
+                drawings.DirectionArrow.Visible = true
+                drawings.DirectionArrow.CFrame = CFrame.new(humanoidRootPart.Position, humanoidRootPart.Position + direction)
+                drawings.DirectionArrow.Height = ESPSettings.ThreeDimensional.DirectionArrow.Size
+            end
+
+            -- Update Highlight Effect
+            if ESPSettings.Effects.Highlight.Enabled and drawings.Highlight then
+                drawings.Highlight.Adornee = character
+                drawings.Highlight.FillColor = ESPSettings.Effects.Highlight.FillColor
+                drawings.Highlight.OutlineColor = ESPSettings.Effects.Highlight.OutlineColor
+                drawings.Highlight.Enabled = true
+            end
+        else
+            -- Hide all drawings if not on screen
+            for _, drawing in pairs(drawings) do
+                if type(drawing) == "table" then
+                    for _, cornerDrawing in pairs(drawing) do
+                        cornerDrawing.Visible = false
+                    end
+                elseif typeof(drawing) == "Instance" and drawing:IsA("Highlight") then
+                    drawing.Enabled = false
+                else
+                    drawing.Visible = false
+                end
+            end
+        end
+    end
+end
+
+-- Player Management
+local function PlayerAdded(player)
+    CreateESPObject(player)
+end
+
+local function PlayerRemoving(player)
+    if ESPObjects[player] then
+        for _, drawing in pairs(ESPObjects[player]) do
+            if type(drawing) == "table" then
+                for _, cornerDrawing in pairs(drawing) do
+                    cornerDrawing:Remove()
+                end
+            else
+                drawing:Remove()
+            end
+        end
+        ESPObjects[player] = nil
+    end
+end
+
+-- Initialize
+for _, player in ipairs(Players:GetPlayers()) do
+    if player ~= LocalPlayer then
+        PlayerAdded(player)
+    end
+end
+
+-- Connections
+Players.PlayerAdded:Connect(PlayerAdded)
+Players.PlayerRemoving:Connect(PlayerRemoving)
+RunService.Heartbeat:Connect(function()
+    if not ESPSettings.Enabled then
+        for _, drawings in pairs(ESPObjects) do
+            for _, drawing in pairs(drawings) do
+                if type(drawing) == "table" then
+                    for _, cornerDrawing in pairs(drawing) do
+                        cornerDrawing.Visible = false
+                    end
+                elseif typeof(drawing) == "Instance" and drawing:IsA("Highlight") then
+                    drawing.Enabled = false
+                else
+                    drawing.Visible = false
+                end
+            end
+        end
+        return
+    end
+    
+    UpdateESP()
+end)
+
+-- Cleanup function enhancement
+local function CleanupESP()
+    for _, drawings in pairs(ESPObjects) do
+        for key, drawing in pairs(drawings) do
+            if type(drawing) == "table" then
+                for _, cornerDrawing in pairs(drawing) do
+                    cornerDrawing:Remove()
+                end
+            elseif typeof(drawing) == "Instance" then
+                drawing:Destroy()
+            else
+                drawing:Remove()
+            end
+        end
+    end
+    ESPObjects = {}
+end
+
+-- Connect cleanup
+game:GetService("CoreGui").ChildRemoved:Connect(function(child)
+    if child.Name == "ESPScript" then
+        CleanupESP()
+    end
+end)
