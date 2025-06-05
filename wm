@@ -2236,7 +2236,109 @@ SpeedHackGroup:AddInput("SpeedHackSpeed", {
     end
 })
 
--- Handle character respawn
+-- Fly Functionality
+local FlyGroup = MovementTab:AddRightGroupbox("Fly")
+
+-- Конфигурация полета
+local FlyConfig = {
+    Enabled = false,
+    Speed = 1,
+    Keybind = "F"
+}
+
+-- Переменные для полета
+local FlyLoop = nil
+
+-- Функция активации полета
+local function toggleFly(state)
+    FlyConfig.Enabled = state
+    
+    -- Отключаем предыдущий цикл полета, если есть
+    if FlyLoop then
+        FlyLoop:Disconnect()
+        FlyLoop = nil
+    end
+    
+    if state then
+        -- Включаем полет
+        FlyLoop = RunService.Stepped:Connect(function()
+            local character = LocalPlayer.Character
+            if not character then return end
+            
+            local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+            local humanoid = character:FindFirstChild("Humanoid")
+            if not humanoidRootPart or not humanoid then return end
+            
+            local speed = FlyConfig.Speed * 50
+            local velocity = Vector3.new(0, 1.2, 0)
+            
+            -- Определяем направление движения
+            if UserInputService:IsKeyDown(Enum.KeyCode.W) then
+                velocity = velocity + (Camera.CoordinateFrame.lookVector * speed)
+            end
+            if UserInputService:IsKeyDown(Enum.KeyCode.A) then
+                velocity = velocity + (Camera.CoordinateFrame.rightVector * -speed)
+            end
+            if UserInputService:IsKeyDown(Enum.KeyCode.S) then
+                velocity = velocity + (Camera.CoordinateFrame.lookVector * -speed)
+            end
+            if UserInputService:IsKeyDown(Enum.KeyCode.D) then
+                velocity = velocity + (Camera.CoordinateFrame.rightVector * speed)
+            end
+            
+            -- Применяем скорость и состояние полета
+            humanoidRootPart.Velocity = velocity
+            humanoid:ChangeState("Freefall")
+        end)
+        
+        Library:Notify("fly on", 2)
+    else
+        -- Выключаем полет
+        local character = LocalPlayer.Character
+        if character and character:FindFirstChild("Humanoid") then
+            character.Humanoid:ChangeState("Landing")
+        end
+        
+        Library:Notify("fly off", 2)
+    end
+end
+
+-- Добавляем переключатель полета
+local FlyToggle = FlyGroup:AddToggle("FlyEnabled", {
+    Text = "toggle fly",
+    Default = FlyConfig.Enabled,
+    Tooltip = "makes you fly",
+    Callback = function(Value)
+        toggleFly(Value)
+    end
+})
+
+-- Добавляем привязку клавиши
+local FlyKeybind = FlyToggle:AddKeyPicker("FlyKeybind", {
+    Default = FlyConfig.Keybind,
+    Text = "Fly",
+    Mode = "Toggle",
+    SyncToggleState = true,
+    Callback = function(Value)
+        -- Синхронизируем с состоянием переключателя
+        FlyToggle:SetValue(Value)
+    end
+})
+
+-- Добавляем слайдер для скорости полета
+local FlySpeedSlider = FlyGroup:AddSlider("FlySpeed", {
+    Text = "FlySpeed",
+    Default = FlyConfig.Speed,
+    Min = 0.5,
+    Max = 20,
+    Rounding = 1,
+    Suffix = "x",
+    Callback = function(Value)
+        FlyConfig.Speed = Value
+    end
+})
+
+-- Handle character respawn for SpeedHack
 LocalPlayer.CharacterAdded:Connect(function(character)
     if SpeedHackConfig.Enabled then
         updateSpeedHack(character)
@@ -2338,8 +2440,13 @@ game:BindToClose(function()
         speedHackConnection:Disconnect()
         speedHackConnection = nil
     end
+    
+    -- Очистка FlyLoop
+    if FlyLoop then
+        FlyLoop:Disconnect()
+        FlyLoop = nil
+    end
 end)
 
 -- Show the UI
 Library:Toggle(true)
-
