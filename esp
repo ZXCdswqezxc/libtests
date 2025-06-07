@@ -157,7 +157,7 @@ esp.update = function()
         if not player then esp.players[plr] = nil continue end
         
         if esp.enabled and esp.checkalive(player) then
-            local character = esp.getcharacter(player)
+            local character = esp:getcharacter(player)
             if not character or not character:FindFirstChild("HumanoidRootPart") or not character:FindFirstChild("Humanoid") then
                 esp:disable(player)
                 continue
@@ -1212,14 +1212,8 @@ local function InitializeBulletEffects()
         local gameData = detectGame()
         
         if not gameData.BulletPath then
-            warn("Не удалось найти путь для пуль")
             return
         end
-        
-        print("Bullet Tracers и VFX Impacts загружены для игры: " .. gameData.Name)
-        print("Путь для пуль:", gameData.BulletPath:GetFullName())
-        print("Имя пули:", gameData.BulletName)
-        print("Имя луча:", gameData.BulletBeamName)
         
         -- Настраиваем отслеживание оружия локального игрока
         setupGunTracking(LocalPlayer)
@@ -1293,3 +1287,456 @@ end
 
 -- Запускаем скрипт для Bullet Effects
 InitializeBulletEffects()
+
+-- Добавляем группбокс для Self Chams в правую часть вкладки
+local SelfChamsGroupbox = VisualsTab:AddRightGroupbox("Self Chams")
+
+-- Локальная переменная для хранения настроек SelfChams
+local selfChamsSettings = {
+    bodyParts = {
+        apply = false,
+        addHighlight = false,
+        rainbow = false,
+        highlightSettings = {
+            FillTransparency = 0.5,
+            OutlineTransparency = 0,
+            FillColor = Color3.new(1, 1, 1),
+            OutlineColor = Color3.new(1, 1, 1)
+        }
+    },
+    accessories = {
+        apply = false,
+        addHighlight = false,
+        rainbow = false,
+        highlightSettings = {
+            FillTransparency = 0.7,
+            OutlineTransparency = 0,
+            FillColor = Color3.new(1, 1, 1),
+            OutlineColor = Color3.new(1, 1, 1)
+        }
+    },
+    heldItems = {
+        apply = false,
+        rainbow = false
+    },
+    enabled = false
+}
+
+-- Таблицы для хранения оригинальных свойств и соединений
+local originalProps = {}
+local rainbowConnections = {}
+local characterAddedConnection
+local heldItemsConnection
+
+-- Главный переключатель SelfChams
+local SelfChamsEnabled = SelfChamsGroupbox:AddToggle("SelfChamsEnabled", {
+    Text = "Enabled",
+    Default = false,
+    Tooltip = "Включить Self Chams",
+    Callback = function(Value)
+        selfChamsSettings.enabled = Value
+        
+        if Value then applySelfChams()
+        else removeSelfChams() end
+    end
+})
+
+-- Раздел для настроек частей тела
+SelfChamsGroupbox:AddDivider()
+SelfChamsGroupbox:AddLabel("Body Parts")
+
+local BodyPartsApply = SelfChamsGroupbox:AddToggle("BodyPartsApply", {
+    Text = "ForceField",
+    Default = false,
+    Callback = function(Value)
+        selfChamsSettings.bodyParts.apply = Value
+        if selfChamsSettings.enabled then updateSelfChams() end
+    end
+})
+
+local BodyPartsHighlight = SelfChamsGroupbox:AddToggle("BodyPartsHighlight", {
+    Text = "Highlight",
+    Default = false,
+    Callback = function(Value)
+        selfChamsSettings.bodyParts.addHighlight = Value
+        if selfChamsSettings.enabled then updateSelfChams() end
+    end
+})
+
+local BodyPartsRainbow = SelfChamsGroupbox:AddToggle("BodyPartsRainbow", {
+    Text = "Rainbow",
+    Default = false,
+    Callback = function(Value)
+        selfChamsSettings.bodyParts.rainbow = Value
+        if selfChamsSettings.enabled then updateSelfChams() end
+    end
+})
+
+local BodyPartsFillColor = BodyPartsHighlight:AddColorPicker("BodyPartsFillColor", {
+    Default = Color3.new(1, 1, 1),
+    Title = "Fill",
+    Callback = function(Value)
+        selfChamsSettings.bodyParts.highlightSettings.FillColor = Value
+        if selfChamsSettings.enabled and not selfChamsSettings.bodyParts.rainbow then updateSelfChams() end
+    end
+})
+
+local BodyPartsOutlineColor = BodyPartsHighlight:AddColorPicker("BodyPartsOutlineColor", {
+    Default = Color3.new(1, 1, 1),
+    Title = "Outline",
+    Callback = function(Value)
+        selfChamsSettings.bodyParts.highlightSettings.OutlineColor = Value
+        if selfChamsSettings.enabled and not selfChamsSettings.bodyParts.rainbow then updateSelfChams() end
+    end
+})
+
+SelfChamsGroupbox:AddSlider("BodyPartsFillTrans", {
+    Text = "Fill Trans",
+    Default = 0.5,
+    Min = 0,
+    Max = 1,
+    Rounding = 2,
+    Compact = true,
+    Callback = function(Value)
+        selfChamsSettings.bodyParts.highlightSettings.FillTransparency = Value
+        if selfChamsSettings.enabled then updateSelfChams() end
+    end
+})
+
+SelfChamsGroupbox:AddSlider("BodyPartsOutlineTrans", {
+    Text = "Outline Trans",
+    Default = 0,
+    Min = 0,
+    Max = 1,
+    Rounding = 2,
+    Compact = true,
+    Callback = function(Value)
+        selfChamsSettings.bodyParts.highlightSettings.OutlineTransparency = Value
+        if selfChamsSettings.enabled then updateSelfChams() end
+    end
+})
+
+-- Раздел для настроек аксессуаров
+SelfChamsGroupbox:AddDivider()
+SelfChamsGroupbox:AddLabel("Accessories")
+
+local AccessoriesApply = SelfChamsGroupbox:AddToggle("AccessoriesApply", {
+    Text = "ForceField",
+    Default = false,
+    Callback = function(Value)
+        selfChamsSettings.accessories.apply = Value
+        if selfChamsSettings.enabled then updateSelfChams() end
+    end
+})
+
+local AccessoriesHighlight = SelfChamsGroupbox:AddToggle("AccessoriesHighlight", {
+    Text = "Highlight",
+    Default = false,
+    Callback = function(Value)
+        selfChamsSettings.accessories.addHighlight = Value
+        if selfChamsSettings.enabled then updateSelfChams() end
+    end
+})
+
+local AccessoriesRainbow = SelfChamsGroupbox:AddToggle("AccessoriesRainbow", {
+    Text = "Rainbow",
+    Default = false,
+    Callback = function(Value)
+        selfChamsSettings.accessories.rainbow = Value
+        if selfChamsSettings.enabled then updateSelfChams() end
+    end
+})
+
+local AccessoriesFillColor = AccessoriesHighlight:AddColorPicker("AccessoriesFillColor", {
+    Default = Color3.new(1, 1, 1),
+    Title = "Fill",
+    Callback = function(Value)
+        selfChamsSettings.accessories.highlightSettings.FillColor = Value
+        if selfChamsSettings.enabled and not selfChamsSettings.accessories.rainbow then updateSelfChams() end
+    end
+})
+
+local AccessoriesOutlineColor = AccessoriesHighlight:AddColorPicker("AccessoriesOutlineColor", {
+    Default = Color3.new(1, 1, 1),
+    Title = "Outline",
+    Callback = function(Value)
+        selfChamsSettings.accessories.highlightSettings.OutlineColor = Value
+        if selfChamsSettings.enabled and not selfChamsSettings.accessories.rainbow then updateSelfChams() end
+    end
+})
+
+SelfChamsGroupbox:AddSlider("AccessoriesFillTrans", {
+    Text = "Fill Trans",
+    Default = 0.7,
+    Min = 0,
+    Max = 1,
+    Rounding = 2,
+    Compact = true,
+    Callback = function(Value)
+        selfChamsSettings.accessories.highlightSettings.FillTransparency = Value
+        if selfChamsSettings.enabled then updateSelfChams() end
+    end
+})
+
+SelfChamsGroupbox:AddSlider("AccessoriesOutlineTrans", {
+    Text = "Outline Trans",
+    Default = 0,
+    Min = 0,
+    Max = 1,
+    Rounding = 2,
+    Compact = true,
+    Callback = function(Value)
+        selfChamsSettings.accessories.highlightSettings.OutlineTransparency = Value
+        if selfChamsSettings.enabled then updateSelfChams() end
+    end
+})
+
+-- Раздел для настроек предметов в руках
+SelfChamsGroupbox:AddDivider()
+SelfChamsGroupbox:AddLabel("Held Items")
+
+local HeldItemsApply = SelfChamsGroupbox:AddToggle("HeldItemsApply", {
+    Text = "ForceField",
+    Default = false,
+    Callback = function(Value)
+        selfChamsSettings.heldItems.apply = Value
+        if selfChamsSettings.enabled then updateSelfChams() end
+    end
+})
+
+local HeldItemsRainbow = SelfChamsGroupbox:AddToggle("HeldItemsRainbow", {
+    Text = "Rainbow",
+    Default = false,
+    Callback = function(Value)
+        selfChamsSettings.heldItems.rainbow = Value
+        if selfChamsSettings.enabled then updateSelfChams() end
+    end
+})
+
+-- Функции для Self Chams
+-- Функция для генерации радужного цвета
+local function getRainbowColor()
+    local hue = (tick() % 10) / 10
+    return Color3.fromHSV(hue, 1, 1)
+end
+
+-- Функция для создания или обновления Highlight
+local function applyHighlight(part, highlightSettings, rainbow)
+    local highlight = part:FindFirstChildOfClass("Highlight") or Instance.new("Highlight", part)
+    highlight.FillTransparency = highlightSettings.FillTransparency
+    highlight.OutlineTransparency = highlightSettings.OutlineTransparency
+    
+    if rainbow then
+        local rainbowColor = getRainbowColor()
+        highlight.FillColor = rainbowColor
+        highlight.OutlineColor = rainbowColor
+    else
+        highlight.FillColor = highlightSettings.FillColor
+        highlight.OutlineColor = highlightSettings.OutlineColor
+    end
+    
+    highlight.Adornee = part
+    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    return highlight
+end
+
+-- Функция для сохранения свойств и применения эффектов
+local function updateParts(character, category, partsFn)
+    if not character then return end
+    
+    local cfg = selfChamsSettings[category]
+    if not cfg then return end
+    
+    for _, part in pairs(partsFn(character)) do
+        -- Сохраняем оригинальные свойства, если еще не сохранены
+        if not originalProps[part] then
+            originalProps[part] = {
+                Color = part.Color,
+                Material = part.Material
+            }
+        end
+        
+        -- Применяем ForceField
+        if cfg.apply then
+            if cfg.rainbow then part.Color = getRainbowColor()
+            else part.Color = (cfg.highlightSettings and cfg.highlightSettings.FillColor) or Color3.new(1,1,1) end
+            part.Material = Enum.Material.ForceField
+        end
+        
+        -- Применяем хайлайт, если нужно
+        if cfg.addHighlight and cfg.highlightSettings then
+            applyHighlight(part, cfg.highlightSettings, cfg.rainbow)
+        else
+            -- Удаляем хайлайт, если он есть, но не должен быть
+            local highlight = part:FindFirstChildOfClass("Highlight")
+            if highlight then highlight:Destroy() end
+        end
+    end
+end
+
+-- Функция для восстановления свойств части персонажа
+local function restorePart(part)
+    if not part or not originalProps[part] then return end
+    
+    -- Сначала восстанавливаем материал, затем цвет
+    part.Material = originalProps[part].Material
+    part.Color = originalProps[part].Color
+    
+    -- Удаляем хайлайт
+    local highlight = part:FindFirstChildOfClass("Highlight")
+    if highlight then highlight:Destroy() end
+end
+
+-- Обновляем внешний вид персонажа
+function updateSelfChams()
+    local character = Players.LocalPlayer.Character
+    if not character then return end
+    
+    -- Обновляем части тела
+    updateParts(character, "bodyParts", function(char)
+        local parts = {}
+        for _, part in pairs(char:GetChildren()) do
+            if part:IsA("BasePart") then table.insert(parts, part) end
+        end
+        return parts
+    end)
+    
+    -- Обновляем аксессуары
+    updateParts(character, "accessories", function(char)
+        local parts = {}
+        for _, accessory in pairs(char:GetChildren()) do
+            if accessory:IsA("Accessory") then
+                local handle = accessory:FindFirstChild("Handle")
+                if handle and handle:IsA("BasePart") then table.insert(parts, handle) end
+            end
+        end
+        return parts
+    end)
+    
+    -- Обновляем предметы в руках
+    updateParts(character, "heldItems", function(char)
+        local parts = {}
+        local tool = char:FindFirstChildOfClass("Tool")
+        if tool then
+            for _, part in pairs(tool:GetDescendants()) do
+                if part:IsA("BasePart") then table.insert(parts, part) end
+            end
+        end
+        return parts
+    end)
+    
+    -- Обновляем подключения
+    setupConnections()
+end
+
+-- Настройка подключений
+function setupConnections()
+    -- Отключаем существующие подключения
+    for _, connection in pairs(rainbowConnections) do
+        if connection then connection:Disconnect() end
+    end
+    rainbowConnections = {}
+    
+    -- Обработка CharacterAdded
+    if characterAddedConnection then characterAddedConnection:Disconnect() end
+    characterAddedConnection = Players.LocalPlayer.CharacterAdded:Connect(function(newCharacter)
+        if not selfChamsSettings.enabled then return end
+        task.wait(0.5) -- Задержка для загрузки персонажа
+        updateSelfChams()
+    end)
+    
+    -- Если включен радужный режим, настраиваем обновление
+    local needsRainbowUpdate = 
+        (selfChamsSettings.bodyParts.rainbow and (selfChamsSettings.bodyParts.apply or selfChamsSettings.bodyParts.addHighlight)) or
+        (selfChamsSettings.accessories.rainbow and (selfChamsSettings.accessories.apply or selfChamsSettings.accessories.addHighlight)) or
+        (selfChamsSettings.heldItems.rainbow and selfChamsSettings.heldItems.apply)
+    
+    if needsRainbowUpdate then
+        local connection = RunService.Heartbeat:Connect(function()
+            if not selfChamsSettings.enabled then return end
+            updateSelfChams()
+        end)
+        table.insert(rainbowConnections, connection)
+    else
+        -- Обработка предметов в руках, если нет радужного режима
+        if selfChamsSettings.heldItems.apply then
+            if heldItemsConnection then heldItemsConnection:Disconnect() end
+            heldItemsConnection = RunService.Heartbeat:Connect(function()
+                if not selfChamsSettings.enabled then return end
+                
+                local character = Players.LocalPlayer.Character
+                if character then
+                    updateParts(character, "heldItems", function(char)
+                        local parts = {}
+                        local tool = char:FindFirstChildOfClass("Tool")
+                        if tool then
+                            for _, part in pairs(tool:GetDescendants()) do
+                                if part:IsA("BasePart") then table.insert(parts, part) end
+                            end
+                        end
+                        return parts
+                    end)
+                end
+            end)
+        end
+    end
+end
+
+-- Применяем Self Chams
+function applySelfChams()
+    -- Очищаем оригинальные свойства
+    originalProps = {}
+    updateSelfChams()
+end
+
+-- Удаляем Self Chams
+function removeSelfChams()
+    -- Отключаем все подключения
+    for _, connection in pairs(rainbowConnections) do
+        if connection then connection:Disconnect() end
+    end
+    rainbowConnections = {}
+    
+    if heldItemsConnection then
+        heldItemsConnection:Disconnect()
+        heldItemsConnection = nil
+    end
+    
+    if characterAddedConnection then
+        characterAddedConnection:Disconnect()
+        characterAddedConnection = nil
+    end
+    
+    -- Восстанавливаем оригинальные свойства
+    local character = Players.LocalPlayer.Character
+    if not character then return end
+    
+    -- Восстанавливаем части тела
+    for _, part in pairs(character:GetChildren()) do
+        if part:IsA("BasePart") then restorePart(part) end
+    end
+    
+    -- Восстанавливаем аксессуары
+    for _, accessory in pairs(character:GetChildren()) do
+        if accessory:IsA("Accessory") then
+            local handle = accessory:FindFirstChild("Handle")
+            if handle and handle:IsA("BasePart") then restorePart(handle) end
+        end
+    end
+    
+    -- Восстанавливаем предметы в руках
+    local tool = character:FindFirstChildOfClass("Tool")
+    if tool then
+        for _, part in pairs(tool:GetDescendants()) do
+            if part:IsA("BasePart") then restorePart(part) end
+        end
+    end
+    
+    -- Очищаем таблицу оригинальных свойств
+    originalProps = {}
+end
+
+-- Глобальная функция для получения настроек Self Chams
+getgenv().GetSelfChamsSettings = function()
+    return selfChamsSettings
+end
