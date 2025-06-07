@@ -1293,23 +1293,12 @@ local SelfChamsGroupbox = VisualsTab:AddRightGroupbox("Self Chams")
 
 -- Локальная переменная для хранения настроек SelfChams
 local selfChamsSettings = {
-    bodyParts = {
+    bodyHighlight = {
         apply = false,
         addHighlight = false,
         rainbow = false,
         highlightSettings = {
             FillTransparency = 0.5,
-            OutlineTransparency = 0,
-            FillColor = Color3.new(1, 1, 1),
-            OutlineColor = Color3.new(1, 1, 1)
-        }
-    },
-    accessories = {
-        apply = false,
-        addHighlight = false,
-        rainbow = false,
-        highlightSettings = {
-            FillTransparency = 0.7,
             OutlineTransparency = 0,
             FillColor = Color3.new(1, 1, 1),
             OutlineColor = Color3.new(1, 1, 1)
@@ -1343,13 +1332,13 @@ local SelfChamsEnabled = SelfChamsGroupbox:AddToggle("SelfChamsEnabled", {
 
 -- Раздел для настроек частей тела
 SelfChamsGroupbox:AddDivider()
-SelfChamsGroupbox:AddLabel("Body Parts")
+SelfChamsGroupbox:AddLabel("Body Highlight")
 
 local BodyPartsApply = SelfChamsGroupbox:AddToggle("BodyPartsApply", {
     Text = "ForceField",
     Default = false,
     Callback = function(Value)
-        selfChamsSettings.bodyParts.apply = Value
+        selfChamsSettings.bodyHighlight.apply = Value
         if selfChamsSettings.enabled then updateSelfChams() end
     end
 })
@@ -1358,7 +1347,7 @@ local BodyPartsHighlight = SelfChamsGroupbox:AddToggle("BodyPartsHighlight", {
     Text = "Highlight",
     Default = false,
     Callback = function(Value)
-        selfChamsSettings.bodyParts.addHighlight = Value
+        selfChamsSettings.bodyHighlight.addHighlight = Value
         if selfChamsSettings.enabled then updateSelfChams() end
     end
 })
@@ -1367,7 +1356,7 @@ local BodyPartsRainbow = SelfChamsGroupbox:AddToggle("BodyPartsRainbow", {
     Text = "Rainbow",
     Default = false,
     Callback = function(Value)
-        selfChamsSettings.bodyParts.rainbow = Value
+        selfChamsSettings.bodyHighlight.rainbow = Value
         if selfChamsSettings.enabled then updateSelfChams() end
     end
 })
@@ -1376,8 +1365,8 @@ local BodyPartsFillColor = BodyPartsHighlight:AddColorPicker("BodyPartsFillColor
     Default = Color3.new(1, 1, 1),
     Title = "Fill",
     Callback = function(Value)
-        selfChamsSettings.bodyParts.highlightSettings.FillColor = Value
-        if selfChamsSettings.enabled and not selfChamsSettings.bodyParts.rainbow then updateSelfChams() end
+        selfChamsSettings.bodyHighlight.highlightSettings.FillColor = Value
+        if selfChamsSettings.enabled and not selfChamsSettings.bodyHighlight.rainbow then updateSelfChams() end
     end
 })
 
@@ -1385,8 +1374,8 @@ local BodyPartsOutlineColor = BodyPartsHighlight:AddColorPicker("BodyPartsOutlin
     Default = Color3.new(1, 1, 1),
     Title = "Outline",
     Callback = function(Value)
-        selfChamsSettings.bodyParts.highlightSettings.OutlineColor = Value
-        if selfChamsSettings.enabled and not selfChamsSettings.bodyParts.rainbow then updateSelfChams() end
+        selfChamsSettings.bodyHighlight.highlightSettings.OutlineColor = Value
+        if selfChamsSettings.enabled and not selfChamsSettings.bodyHighlight.rainbow then updateSelfChams() end
     end
 })
 
@@ -1398,7 +1387,7 @@ SelfChamsGroupbox:AddSlider("BodyPartsFillTrans", {
     Rounding = 2,
     Compact = true,
     Callback = function(Value)
-        selfChamsSettings.bodyParts.highlightSettings.FillTransparency = Value
+        selfChamsSettings.bodyHighlight.highlightSettings.FillTransparency = Value
         if selfChamsSettings.enabled then updateSelfChams() end
     end
 })
@@ -1411,82 +1400,7 @@ SelfChamsGroupbox:AddSlider("BodyPartsOutlineTrans", {
     Rounding = 2,
     Compact = true,
     Callback = function(Value)
-        selfChamsSettings.bodyParts.highlightSettings.OutlineTransparency = Value
-        if selfChamsSettings.enabled then updateSelfChams() end
-    end
-})
-
--- Раздел для настроек аксессуаров
-SelfChamsGroupbox:AddDivider()
-SelfChamsGroupbox:AddLabel("Accessories")
-
-local AccessoriesApply = SelfChamsGroupbox:AddToggle("AccessoriesApply", {
-    Text = "ForceField",
-    Default = false,
-    Callback = function(Value)
-        selfChamsSettings.accessories.apply = Value
-        if selfChamsSettings.enabled then updateSelfChams() end
-    end
-})
-
-local AccessoriesHighlight = SelfChamsGroupbox:AddToggle("AccessoriesHighlight", {
-    Text = "Highlight",
-    Default = false,
-    Callback = function(Value)
-        selfChamsSettings.accessories.addHighlight = Value
-        if selfChamsSettings.enabled then updateSelfChams() end
-    end
-})
-
-local AccessoriesRainbow = SelfChamsGroupbox:AddToggle("AccessoriesRainbow", {
-    Text = "Rainbow",
-    Default = false,
-    Callback = function(Value)
-        selfChamsSettings.accessories.rainbow = Value
-        if selfChamsSettings.enabled then updateSelfChams() end
-    end
-})
-
-local AccessoriesFillColor = AccessoriesHighlight:AddColorPicker("AccessoriesFillColor", {
-    Default = Color3.new(1, 1, 1),
-    Title = "Fill",
-    Callback = function(Value)
-        selfChamsSettings.accessories.highlightSettings.FillColor = Value
-        if selfChamsSettings.enabled and not selfChamsSettings.accessories.rainbow then updateSelfChams() end
-    end
-})
-
-local AccessoriesOutlineColor = AccessoriesHighlight:AddColorPicker("AccessoriesOutlineColor", {
-    Default = Color3.new(1, 1, 1),
-    Title = "Outline",
-    Callback = function(Value)
-        selfChamsSettings.accessories.highlightSettings.OutlineColor = Value
-        if selfChamsSettings.enabled and not selfChamsSettings.accessories.rainbow then updateSelfChams() end
-    end
-})
-
-SelfChamsGroupbox:AddSlider("AccessoriesFillTrans", {
-    Text = "Fill Trans",
-    Default = 0.7,
-    Min = 0,
-    Max = 1,
-    Rounding = 2,
-    Compact = true,
-    Callback = function(Value)
-        selfChamsSettings.accessories.highlightSettings.FillTransparency = Value
-        if selfChamsSettings.enabled then updateSelfChams() end
-    end
-})
-
-SelfChamsGroupbox:AddSlider("AccessoriesOutlineTrans", {
-    Text = "Outline Trans",
-    Default = 0,
-    Min = 0,
-    Max = 1,
-    Rounding = 2,
-    Compact = true,
-    Callback = function(Value)
-        selfChamsSettings.accessories.highlightSettings.OutlineTransparency = Value
+        selfChamsSettings.bodyHighlight.highlightSettings.OutlineTransparency = Value
         if selfChamsSettings.enabled then updateSelfChams() end
     end
 })
@@ -1519,9 +1433,9 @@ local function getRainbowColor()
     return Color3.fromHSV(hue, 1, 1)
 end
 
--- Функция для создания или обновления Highlight
-local function applyHighlight(part, highlightSettings, rainbow)
-    local highlight = part:FindFirstChildOfClass("Highlight") or Instance.new("Highlight", part)
+-- Функция для создания нового Highlight объекта
+local function createHighlight(highlightSettings, rainbow)
+    local highlight = Instance.new("Highlight")
     highlight.FillTransparency = highlightSettings.FillTransparency
     highlight.OutlineTransparency = highlightSettings.OutlineTransparency
     
@@ -1534,18 +1448,26 @@ local function applyHighlight(part, highlightSettings, rainbow)
         highlight.OutlineColor = highlightSettings.OutlineColor
     end
     
-    highlight.Adornee = part
     highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
     return highlight
 end
 
--- Глобальные переменные для отслеживания состояния
-local highlightCheckConnection = nil
+-- Хайлайт для частей тела и аксессуаров
+local bodyPartsHighlight = nil
 
 -- Обновляем внешний вид персонажа
 function updateSelfChams()
     local character = Players.LocalPlayer.Character
     if not character then return end
+    
+    -- Удаляем существующие хайлайты
+    if bodyPartsHighlight and bodyPartsHighlight.Parent then
+        bodyPartsHighlight:Destroy()
+        bodyPartsHighlight = nil
+    end
+    
+    -- Создаем массивы для частей тела и аксессуаров
+    local bodyParts = {}
     
     -- Обновляем части тела
     for _, part in pairs(character:GetChildren()) do
@@ -1558,25 +1480,27 @@ function updateSelfChams()
                 }
             end
             
-            if selfChamsSettings.bodyParts.apply then
-                if selfChamsSettings.bodyParts.rainbow then
+            if selfChamsSettings.bodyHighlight.apply then
+                if selfChamsSettings.bodyHighlight.rainbow then
                     part.Color = getRainbowColor()
                 else
-                    part.Color = selfChamsSettings.bodyParts.highlightSettings.FillColor
+                    part.Color = selfChamsSettings.bodyHighlight.highlightSettings.FillColor
                 end
                 part.Material = Enum.Material.ForceField
             end
             
-            if selfChamsSettings.bodyParts.addHighlight then
-                applyHighlight(part, selfChamsSettings.bodyParts.highlightSettings, selfChamsSettings.bodyParts.rainbow)
-            else
-                local highlight = part:FindFirstChildOfClass("Highlight")
-                if highlight then highlight:Destroy() end
+            -- Добавляем часть тела в массив для хайлайта
+            if selfChamsSettings.bodyHighlight.addHighlight then
+                table.insert(bodyParts, part)
             end
+            
+            -- Удаляем старые хайлайты, если есть
+            local highlight = part:FindFirstChildOfClass("Highlight")
+            if highlight then highlight:Destroy() end
         end
     end
     
-    -- Обновляем аксессуары
+    -- Обновляем аксессуары - применяем те же настройки, что и для тела
     for _, accessory in pairs(character:GetChildren()) do
         if accessory:IsA("Accessory") then
             local handle = accessory:FindFirstChild("Handle")
@@ -1589,22 +1513,34 @@ function updateSelfChams()
                     }
                 end
                 
-                if selfChamsSettings.accessories.apply then
-                    if selfChamsSettings.accessories.rainbow then
+                if selfChamsSettings.bodyHighlight.apply then
+                    if selfChamsSettings.bodyHighlight.rainbow then
                         handle.Color = getRainbowColor()
                     else
-                        handle.Color = selfChamsSettings.accessories.highlightSettings.FillColor
+                        handle.Color = selfChamsSettings.bodyHighlight.highlightSettings.FillColor
                     end
                     handle.Material = Enum.Material.ForceField
                 end
                 
-                if selfChamsSettings.accessories.addHighlight then
-                    applyHighlight(handle, selfChamsSettings.accessories.highlightSettings, selfChamsSettings.accessories.rainbow)
-                else
-                    local highlight = handle:FindFirstChildOfClass("Highlight")
-                    if highlight then highlight:Destroy() end
+                -- Добавляем аксессуар в массив для хайлайта
+                if selfChamsSettings.bodyHighlight.addHighlight then
+                    table.insert(bodyParts, handle)
                 end
+                
+                -- Удаляем старые хайлайты, если есть
+                local highlight = handle:FindFirstChildOfClass("Highlight")
+                if highlight then highlight:Destroy() end
             end
+        end
+    end
+    
+    -- Создаем новые хайлайты если нужно
+    if selfChamsSettings.bodyHighlight.addHighlight and #bodyParts > 0 then
+        -- Для каждой части создаем отдельный хайлайт
+        for _, part in pairs(bodyParts) do
+            local highlight = createHighlight(selfChamsSettings.bodyHighlight.highlightSettings, selfChamsSettings.bodyHighlight.rainbow)
+            highlight.Adornee = part
+            highlight.Parent = part
         end
     end
     
@@ -1638,30 +1574,73 @@ function updateSelfChams()
 end
 
 -- Функция для проверки и добавления хайлайтов к критическим частям
-local function checkAndApplyHighlights()
+local function updateHighlights()
     local character = Players.LocalPlayer.Character
     if not character or not selfChamsSettings.enabled then return end
     
-    -- Проверяем и добавляем хайлайты к частям тела
-    if selfChamsSettings.bodyParts.addHighlight then
+    -- Удаляем хайлайт, если он существует
+    if bodyPartsHighlight and bodyPartsHighlight.Parent then
+        bodyPartsHighlight:Destroy()
+        bodyPartsHighlight = nil
+    end
+    
+    -- Собираем массивы для обработки
+    local bodyParts = {}
+    
+    -- Собираем части тела и аксессуары без хайлайтов
+    if selfChamsSettings.bodyHighlight.addHighlight then
+        -- Части тела
         for _, part in pairs(character:GetChildren()) do
-            if part:IsA("BasePart") then
-                if not part:FindFirstChildOfClass("Highlight") then
-                    applyHighlight(part, selfChamsSettings.bodyParts.highlightSettings, selfChamsSettings.bodyParts.rainbow)
+            if part:IsA("BasePart") and not part:FindFirstChildOfClass("Highlight") then
+                table.insert(bodyParts, part)
+            end
+        end
+        
+        -- Аксессуары
+        for _, accessory in pairs(character:GetChildren()) do
+            if accessory:IsA("Accessory") then
+                local handle = accessory:FindFirstChild("Handle") 
+                if handle and handle:IsA("BasePart") and not handle:FindFirstChildOfClass("Highlight") then
+                    table.insert(bodyParts, handle)
                 end
+            end
+        end
+    else
+        -- Если хайлайты отключены, удаляем их все
+        for _, part in pairs(character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                local highlight = part:FindFirstChildOfClass("Highlight")
+                if highlight then highlight:Destroy() end
             end
         end
     end
     
-    -- Проверяем и добавляем хайлайты к аксессуарам
-    if selfChamsSettings.accessories.addHighlight then
-        for _, accessory in pairs(character:GetChildren()) do
-            if accessory:IsA("Accessory") then
-                local handle = accessory:FindFirstChild("Handle")
-                if handle and handle:IsA("BasePart") then
-                    if not handle:FindFirstChildOfClass("Highlight") then
-                        applyHighlight(handle, selfChamsSettings.accessories.highlightSettings, selfChamsSettings.accessories.rainbow)
-                    end
+    -- Создаем хайлайты для всех частей
+    if #bodyParts > 0 then
+        for _, part in pairs(bodyParts) do
+            local highlight = createHighlight(selfChamsSettings.bodyHighlight.highlightSettings, selfChamsSettings.bodyHighlight.rainbow)
+            highlight.Adornee = part
+            highlight.Parent = part
+            
+            -- Обновление цветов хайлайта при режиме радуги
+            if selfChamsSettings.bodyHighlight.rainbow then
+                local rainbowColor = getRainbowColor()
+                highlight.FillColor = rainbowColor
+                highlight.OutlineColor = rainbowColor
+            end
+        end
+    end
+    
+    -- Обновление цветов для существующих хайлайтов в режиме радуги
+    if selfChamsSettings.bodyHighlight.rainbow then
+        local rainbowColor = getRainbowColor()
+        
+        for _, part in pairs(character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                local highlight = part:FindFirstChildOfClass("Highlight")
+                if highlight then
+                    highlight.FillColor = rainbowColor
+                    highlight.OutlineColor = rainbowColor
                 end
             end
         end
@@ -1690,18 +1669,17 @@ function setupConnections()
         highlightCheckConnection = nil
     end
     
-    -- Всегда запускаем проверку хайлайтов каждые 0.1 секунды, если включен Self Chams
+    -- Всегда запускаем обновление хайлайтов каждые 0.1 секунды, если включен Self Chams
     if selfChamsSettings.enabled then
         highlightCheckConnection = RunService.Heartbeat:Connect(function()
             -- Не используем task.wait здесь, т.к. это может вызвать пропуски кадров
-            checkAndApplyHighlights()
+            updateHighlights()
         end)
     end
     
     -- Если включен радужный режим, настраиваем обновление
     local needsRainbowUpdate = 
-        (selfChamsSettings.bodyParts.rainbow and (selfChamsSettings.bodyParts.apply or selfChamsSettings.bodyParts.addHighlight)) or
-        (selfChamsSettings.accessories.rainbow and (selfChamsSettings.accessories.apply or selfChamsSettings.accessories.addHighlight)) or
+        (selfChamsSettings.bodyHighlight.rainbow and (selfChamsSettings.bodyHighlight.apply or selfChamsSettings.bodyHighlight.addHighlight)) or
         (selfChamsSettings.heldItems.rainbow and selfChamsSettings.heldItems.apply)
     
     if needsRainbowUpdate then
@@ -1770,18 +1748,31 @@ function removeSelfChams()
         highlightCheckConnection = nil
     end
     
+    -- Удаляем главный хайлайт (если остался)
+    if bodyPartsHighlight then
+        bodyPartsHighlight:Destroy()
+        bodyPartsHighlight = nil
+    end
+    
     -- Восстанавливаем оригинальные свойства
     local character = Players.LocalPlayer.Character
     if not character then return end
     
-    -- Восстанавливаем все части тела
+    -- Находим и удаляем ВСЕ хайлайты в персонаже
     for _, part in pairs(character:GetDescendants()) do
-        if part:IsA("BasePart") and originalProps[part] then
-            part.Material = originalProps[part].Material
-            part.Color = originalProps[part].Color
+        if part:IsA("BasePart") then
+            -- Восстанавливаем оригинальные свойства, если они были сохранены
+            if originalProps[part] then
+                part.Material = originalProps[part].Material
+                part.Color = originalProps[part].Color
+            end
             
-            local highlight = part:FindFirstChildOfClass("Highlight")
-            if highlight then highlight:Destroy() end
+            -- Удаляем все хайлайты, связанные с этой частью
+            for _, highlight in pairs(part:GetChildren()) do
+                if highlight:IsA("Highlight") then
+                    highlight:Destroy()
+                end
+            end
         end
     end
     
@@ -1800,10 +1791,10 @@ local AurasGroupbox = VisualsTab:AddRightGroupbox("Auras")
 -- Локальная переменная для хранения настроек Auras
 local aurasSettings = {
     enabled = false,
-    color1 = Color3.new(22/85, 4/17, 1), -- Синий цвет по умолчанию
-    color2 = Color3.new(22/85, 4/17, 1),
+    color1 = Color3.new(1, 1, 1), -- Белый цвет по умолчанию
+    color2 = Color3.new(1, 1, 1),
     lightEmission = 1,
-    size = 10 -- Добавляем настройку размера
+    size = 10 -- Настройка размера
 }
 
 -- Глобальные переменные для отслеживания текущей ауры
@@ -1812,8 +1803,9 @@ local characterAddedConnection = nil
 
 -- Главный переключатель Auras
 local AurasEnabled = AurasGroupbox:AddToggle("AurasEnabled", {
-    Text = "Aura Effect",
+    Text = "Enabled",
     Default = false,
+    Tooltip = "On/Off",
     Callback = function(Value)
         aurasSettings.enabled = Value
         
@@ -1827,8 +1819,8 @@ local AurasEnabled = AurasGroupbox:AddToggle("AurasEnabled", {
 
 -- Выбор цветов для градиента ауры
 local AuraColor1 = AurasEnabled:AddColorPicker("AuraColor1", {
-    Default = Color3.new(22/85, 4/17, 1),
-    Title = "Start Color",
+    Default = Color3.new(1, 1, 1),
+    Title = "Start",
     Callback = function(Value)
         aurasSettings.color1 = Value
         if aurasSettings.enabled then
@@ -1838,8 +1830,8 @@ local AuraColor1 = AurasEnabled:AddColorPicker("AuraColor1", {
 })
 
 local AuraColor2 = AurasEnabled:AddColorPicker("AuraColor2", {
-    Default = Color3.new(22/85, 4/17, 1),
-    Title = "End Color",
+    Default = Color3.new(1, 1, 1),
+    Title = "End",
     Callback = function(Value)
         aurasSettings.color2 = Value
         if aurasSettings.enabled then
@@ -1850,12 +1842,13 @@ local AuraColor2 = AurasEnabled:AddColorPicker("AuraColor2", {
 
 -- Слайдер для Light Emission
 AurasGroupbox:AddSlider("AuraLightEmission", {
-    Text = "Light Emission",
+    Text = "Emission",
     Default = 1,
     Min = 0,
     Max = 1,
     Rounding = 2,
     Compact = true,
+    Tooltip = "Light",
     Callback = function(Value)
         aurasSettings.lightEmission = Value
         if aurasSettings.enabled then
@@ -1866,12 +1859,13 @@ AurasGroupbox:AddSlider("AuraLightEmission", {
 
 -- Добавляем слайдер для размера ауры
 AurasGroupbox:AddSlider("AuraSize", {
-    Text = "Aura Size",
+    Text = "Size",
     Default = 10,
     Min = 1,
     Max = 20,
     Rounding = 1,
     Compact = true,
+    Tooltip = "Size",
     Callback = function(Value)
         aurasSettings.size = Value
         if aurasSettings.enabled then
@@ -2033,8 +2027,8 @@ end
 -- Добавляем настройки для новой ауры (Tornado Aura)
 local tornadoAuraSettings = {
     enabled = false,
-    beamColor = Color3.new(247/255, 47/255, 47/255),  -- Красный цвет по умолчанию
-    starColor = Color3.new(247/255, 47/255, 47/255),  -- Красный цвет для звезды
+    beamColor = Color3.new(1, 1, 1),  -- Белый цвет по умолчанию
+    starColor = Color3.new(1, 1, 1),  -- Белый цвет для звезды
     lightEmission = 0.8,
     width = 4,
     height = 6,
@@ -2046,12 +2040,13 @@ local currentTornadoAura = nil
 local tornadoAuraConnection = nil
 
 -- Добавляем новый группбокс для TornadoAura
-local TornadoAuraGroupbox = VisualsTab:AddRightGroupbox("Tornado Aura")
+local TornadoAuraGroupbox = VisualsTab:AddRightGroupbox("Aura2")
 
 -- Главный переключатель Tornado Aura
 local TornadoAuraEnabled = TornadoAuraGroupbox:AddToggle("TornadoAuraEnabled", {
-    Text = "Tornado Effect",
+    Text = "Enabled",
     Default = false,
+    Tooltip = "On/Off",
     Callback = function(Value)
         tornadoAuraSettings.enabled = Value
         
@@ -2065,8 +2060,8 @@ local TornadoAuraEnabled = TornadoAuraGroupbox:AddToggle("TornadoAuraEnabled", {
 
 -- Выбор цвета для Tornado ауры
 local TornadoAuraColor = TornadoAuraEnabled:AddColorPicker("TornadoAuraColor", {
-    Default = Color3.new(247/255, 47/255, 47/255),
-    Title = "Beam Color",
+    Default = Color3.new(1, 1, 1),
+    Title = "Beam",
     Callback = function(Value)
         tornadoAuraSettings.beamColor = Value
         if tornadoAuraSettings.enabled then
@@ -2076,8 +2071,8 @@ local TornadoAuraColor = TornadoAuraEnabled:AddColorPicker("TornadoAuraColor", {
 })
 
 local TornadoStarColor = TornadoAuraEnabled:AddColorPicker("TornadoStarColor", {
-    Default = Color3.new(247/255, 47/255, 47/255),
-    Title = "Star Color",
+    Default = Color3.new(1, 1, 1),
+    Title = "Star",
     Callback = function(Value)
         tornadoAuraSettings.starColor = Value
         if tornadoAuraSettings.enabled then
@@ -2088,12 +2083,13 @@ local TornadoStarColor = TornadoAuraEnabled:AddColorPicker("TornadoStarColor", {
 
 -- Слайдер для Light Emission
 TornadoAuraGroupbox:AddSlider("TornadoLightEmission", {
-    Text = "Light Emission",
+    Text = "Emission",
     Default = 0.8,
     Min = 0,
     Max = 1,
     Rounding = 2,
     Compact = true,
+    Tooltip = "Light",
     Callback = function(Value)
         tornadoAuraSettings.lightEmission = Value
         if tornadoAuraSettings.enabled then
@@ -2104,10 +2100,10 @@ TornadoAuraGroupbox:AddSlider("TornadoLightEmission", {
 
 -- Выпадающий список для выбора текстуры звезды
 TornadoAuraGroupbox:AddDropdown("StarTexture", {
-    Text = "Star Texture",
+    Text = "Texture",
     Default = "8920246243",
     Values = {"8920246243", "10365549270", "5726444189", "1266170131", "12363692255", "12363692920"},
-    Tooltip = "Select texture for the star particle",
+    Tooltip = "Star",
     Callback = function(Value)
         tornadoAuraSettings.starTexture = "rbxassetid://" .. Value
         if tornadoAuraSettings.enabled then
@@ -2431,4 +2427,376 @@ function applyTornadoAura()
             end
         end)
     end
+end
+
+-- Добавляем группбокс для Orbit Aura в правую часть вкладки
+local OrbitAuraGroupbox = VisualsTab:AddRightGroupbox("Orbit Aura")
+
+-- Локальная переменная для хранения настроек Orbit Aura
+local orbitAuraSettings = {
+    enabled = false,
+    sphereCount = 4,
+    orbitRadius = 5,
+    orbitSpeed = 2,
+    sphereSize = 0.01,
+    sphereColor = Color3.new(1, 1, 1),
+    lightEmission = 0.5
+}
+
+-- Глобальные переменные для отслеживания орбитальных сфер
+local orbitAuraBase = nil
+local orbitSpheres = {}
+local orbitUpdateConnection = nil
+local orbitCharacterConnection = nil
+local angleIncrement = 2 * math.pi / orbitAuraSettings.sphereCount -- Предварительный расчет шага угла
+
+-- Главный переключатель Orbit Aura
+local OrbitAuraEnabled = OrbitAuraGroupbox:AddToggle("OrbitAuraEnabled", {
+    Text = "Enabled",
+    Default = false,
+    Tooltip = "On/Off",
+    Callback = function(Value)
+        orbitAuraSettings.enabled = Value
+        
+        if Value then
+            applyOrbitAura()
+        else
+            removeOrbitAura()
+        end
+    end
+})
+
+-- Выбор цвета для сфер орбитальной ауры
+local OrbitAuraColor = OrbitAuraEnabled:AddColorPicker("OrbitAuraColor", {
+    Default = Color3.new(1, 1, 1),
+    Title = "Color",
+    Callback = function(Value)
+        orbitAuraSettings.sphereColor = Value
+        updateOrbitAuraColors()
+    end
+})
+
+-- Настройка количества сфер
+OrbitAuraGroupbox:AddSlider("SphereCount", {
+    Text = "Count",
+    Default = 4,
+    Min = 1,
+    Max = 12,
+    Rounding = 0,
+    Compact = true,
+    Tooltip = "Spheres",
+    Callback = function(Value)
+        orbitAuraSettings.sphereCount = Value
+        angleIncrement = 2 * math.pi / Value
+        if orbitAuraSettings.enabled then
+            removeOrbitAura()
+            applyOrbitAura()
+        end
+    end
+})
+
+-- Настройка радиуса орбиты
+OrbitAuraGroupbox:AddSlider("OrbitRadius", {
+    Text = "Radius",
+    Default = 5,
+    Min = 1,
+    Max = 10,
+    Rounding = 1,
+    Compact = true,
+    Tooltip = "Size",
+    Callback = function(Value)
+        orbitAuraSettings.orbitRadius = Value
+    end
+})
+
+-- Настройка скорости орбиты
+OrbitAuraGroupbox:AddSlider("OrbitSpeed", {
+    Text = "Speed",
+    Default = 2,
+    Min = 0.1,
+    Max = 5,
+    Rounding = 1,
+    Compact = true,
+    Tooltip = "Speed",
+    Callback = function(Value)
+        orbitAuraSettings.orbitSpeed = Value
+    end
+})
+
+
+
+-- Настройка размера сфер
+OrbitAuraGroupbox:AddSlider("SphereSize", {
+    Text = "Size",
+    Default = 0.01,
+    Min = 0.01,
+    Max = 0.1,
+    Rounding = 3,
+    Compact = true,
+    Tooltip = "Size",
+    Callback = function(Value)
+        orbitAuraSettings.sphereSize = Value
+        updateOrbitSphereSize()
+    end
+})
+
+-- Настройка светимости
+OrbitAuraGroupbox:AddSlider("OrbitLightEmission", {
+    Text = "Emission",
+    Default = 0.5,
+    Min = 0,
+    Max = 1,
+    Rounding = 2,
+    Compact = true,
+    Tooltip = "Light",
+    Callback = function(Value)
+        orbitAuraSettings.lightEmission = Value
+        updateOrbitLightEmission()
+    end
+})
+
+-- Функция создания сферы с частицами
+local function createSphereWithParticles()
+    local sphere = Instance.new("Part")
+    sphere.Shape = Enum.PartType.Ball
+    sphere.Size = Vector3.new(orbitAuraSettings.sphereSize, orbitAuraSettings.sphereSize, orbitAuraSettings.sphereSize)
+    sphere.Anchored = true
+    sphere.CanCollide = false
+    sphere.Transparency = 1
+    sphere.Material = Enum.Material.SmoothPlastic
+    sphere.Name = "OrbitSphere"
+
+    local attachment = Instance.new("Attachment")
+    attachment.Name = "Main"
+    attachment.Parent = sphere
+
+    local particle = Instance.new("ParticleEmitter")
+    particle.Name = "OrbitParticle"
+    particle.RotSpeed = NumberRange.new(1000)
+    particle.Color = ColorSequence.new(orbitAuraSettings.sphereColor)
+    particle.LockedToPart = true
+    particle.Rate = 50
+    particle.VelocitySpread = 360
+    particle.Rotation = NumberRange.new(-360, 360)
+    particle.Transparency = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 1, 0),
+        NumberSequenceKeypoint.new(0.5, 0, 0),
+        NumberSequenceKeypoint.new(1, 1, 0)
+    })
+    particle.Lifetime = NumberRange.new(1)
+    particle.Speed = NumberRange.new(0.01)
+    particle.Texture = "rbxassetid://6835970470"
+    particle.LightEmission = orbitAuraSettings.lightEmission
+    particle.Size = NumberSequence.new(orbitAuraSettings.sphereSize * 100)
+    particle.SpreadAngle = Vector2.new(-360, 360)
+    particle.EmissionDirection = Enum.NormalId.Top
+    particle.Orientation = Enum.ParticleOrientation.VelocityParallel
+    particle.Parent = attachment
+
+    return sphere
+end
+
+-- Функция обновления цветов орбиты
+function updateOrbitAuraColors()
+    for _, sphere in ipairs(orbitSpheres) do
+        if sphere and sphere.Parent then
+            local attachment = sphere:FindFirstChild("Main")
+            if attachment then
+                local particle = attachment:FindFirstChild("OrbitParticle")
+                if particle then
+                    particle.Color = ColorSequence.new(orbitAuraSettings.sphereColor)
+                end
+            end
+        end
+    end
+end
+
+-- Функция обновления размера сфер
+function updateOrbitSphereSize()
+    for _, sphere in ipairs(orbitSpheres) do
+        if sphere and sphere.Parent then
+            local attachment = sphere:FindFirstChild("Main")
+            if attachment then
+                local particle = attachment:FindFirstChild("OrbitParticle")
+                if particle then
+                    particle.Size = NumberSequence.new(orbitAuraSettings.sphereSize * 100)
+                end
+            end
+        end
+    end
+end
+
+-- Функция обновления светимости
+function updateOrbitLightEmission()
+    for _, sphere in ipairs(orbitSpheres) do
+        if sphere and sphere.Parent then
+            local attachment = sphere:FindFirstChild("Main")
+            if attachment then
+                local particle = attachment:FindFirstChild("OrbitParticle")
+                if particle then
+                    particle.LightEmission = orbitAuraSettings.lightEmission
+                end
+            end
+        end
+    end
+end
+
+-- Функция для применения орбитальной ауры
+function applyOrbitAura()
+    local player = Players.LocalPlayer
+    local character = player.Character
+    
+    -- Функция для подключения обработчика смерти
+    local function setupDeathHandler(char)
+        if char then
+            local humanoid = char:FindFirstChildOfClass("Humanoid")
+            if humanoid then
+                humanoid.Died:Connect(function()
+                    if orbitAuraSettings.enabled then
+                        -- Удаляем существующую ауру при смерти
+                        removeOrbitAura()
+                    end
+                end)
+            end
+        end
+    end
+    
+    -- Если персонаж не существует, ждем его появления
+    if not character then
+        if orbitCharacterConnection then orbitCharacterConnection:Disconnect() end
+        orbitCharacterConnection = player.CharacterAdded:Connect(function(newCharacter)
+            if orbitAuraSettings.enabled then
+                createOrbitAura(newCharacter)
+                setupDeathHandler(newCharacter)
+            end
+        end)
+        return
+    end
+    
+    createOrbitAura(character)
+    setupDeathHandler(character)
+    
+    -- Подключаем обработчик возрождения персонажа, если еще не подключен
+    if not orbitCharacterConnection then
+        orbitCharacterConnection = player.CharacterAdded:Connect(function(newCharacter)
+            if orbitAuraSettings.enabled then
+                task.wait(0.5) -- Небольшая задержка для загрузки персонажа
+                createOrbitAura(newCharacter)
+                setupDeathHandler(newCharacter)
+            end
+        end)
+    end
+end
+
+-- Функция для создания орбитальной ауры
+function createOrbitAura(character)
+    -- Удаляем существующую ауру, если она есть
+    removeOrbitAura()
+    
+    -- Получаем HumanoidRootPart для привязки
+    local attachPart = character:FindFirstChild("HumanoidRootPart")
+    if not attachPart then return end
+    
+    -- Создаем базовую часть для орбиты
+    orbitAuraBase = Instance.new("Part")
+    orbitAuraBase.Size = Vector3.new(0.01, 0.01, 0.01)
+    orbitAuraBase.Transparency = 1
+    orbitAuraBase.Anchored = true
+    orbitAuraBase.CanCollide = false
+    orbitAuraBase.Name = "OrbitAuraBase"
+    orbitAuraBase.Position = attachPart.Position
+    orbitAuraBase.Parent = game.Workspace
+    
+    -- Создаем сферы
+    for i = 1, orbitAuraSettings.sphereCount do
+        local sphere = createSphereWithParticles()
+        sphere.Parent = game.Workspace
+        table.insert(orbitSpheres, sphere)
+    end
+    
+    -- Обновляем позиции
+    local function updatePositions()
+        if attachPart and attachPart.Parent and orbitAuraBase and orbitAuraBase.Parent then
+            orbitAuraBase.CFrame = CFrame.new(attachPart.Position)
+            
+            local time = tick()
+            for i, sphere in ipairs(orbitSpheres) do
+                if sphere.Parent then
+                                        -- Базовый угол для каждой сферы + вращение по времени
+                    local angle = angleIncrement * (i - 1) + (time * orbitAuraSettings.orbitSpeed)
+                    
+                    -- Рассчитываем позицию на орбите
+                    local baseOffset = Vector3.new(
+                        math.cos(angle) * orbitAuraSettings.orbitRadius,
+                        0,
+                        math.sin(angle) * orbitAuraSettings.orbitRadius
+                    )
+                    
+                    sphere.Position = orbitAuraBase.Position + baseOffset
+                end
+            end
+        else
+            -- Если привязка потеряна (например, персонаж респавнится)
+            local player = Players.LocalPlayer
+            local newCharacter = player and player.Character
+            if newCharacter and orbitAuraSettings.enabled then
+                local newHRP = newCharacter:FindFirstChild("HumanoidRootPart")
+                if newHRP then
+                    -- Перепривязываем к новому персонажу
+                    if orbitUpdateConnection then
+                        orbitUpdateConnection:Disconnect()
+                        orbitUpdateConnection = nil
+                    end
+                    
+                    task.delay(0.2, function()
+                        if orbitAuraSettings.enabled then
+                            createOrbitAura(newCharacter)
+                        end
+                    end)
+                end
+            end
+        end
+    end
+    
+    -- Подключаем обновление к RenderStepped для плавности
+    if orbitUpdateConnection then orbitUpdateConnection:Disconnect() end
+    orbitUpdateConnection = RunService.RenderStepped:Connect(updatePositions)
+    
+    -- Очистка при удалении базы
+    orbitAuraBase.AncestryChanged:Connect(function()
+        if not orbitAuraBase.Parent then
+            if orbitUpdateConnection then
+                orbitUpdateConnection:Disconnect()
+                orbitUpdateConnection = nil
+            end
+        end
+    end)
+end
+
+-- Функция для удаления орбитальной ауры
+function removeOrbitAura()
+    -- Отключаем обновление
+    if orbitUpdateConnection then
+        orbitUpdateConnection:Disconnect()
+        orbitUpdateConnection = nil
+    end
+    
+    -- Удаляем базу
+    if orbitAuraBase and orbitAuraBase.Parent then
+        orbitAuraBase:Destroy()
+    end
+    orbitAuraBase = nil
+    
+    -- Удаляем все сферы
+    for _, sphere in ipairs(orbitSpheres) do
+        if sphere and sphere.Parent then
+            sphere:Destroy()
+        end
+    end
+    orbitSpheres = {}
+end
+
+-- Глобальная функция для получения настроек Orbit Aura
+getgenv().GetOrbitAuraSettings = function()
+    return orbitAuraSettings
 end
