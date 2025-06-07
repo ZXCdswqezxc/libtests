@@ -1513,7 +1513,6 @@ local HeldItemsRainbow = SelfChamsGroupbox:AddToggle("HeldItemsRainbow", {
     end
 })
 
--- Функции для Self Chams
 -- Функция для генерации радужного цвета
 local function getRainbowColor()
     local hue = (tick() % 10) / 10
@@ -1540,52 +1539,8 @@ local function applyHighlight(part, highlightSettings, rainbow)
     return highlight
 end
 
--- Функция для сохранения свойств и применения эффектов
-local function updateParts(character, category, partsFn)
-    if not character then return end
-    
-    local cfg = selfChamsSettings[category]
-    if not cfg then return end
-    
-    for _, part in pairs(partsFn(character)) do
-        -- Сохраняем оригинальные свойства, если еще не сохранены
-        if not originalProps[part] then
-            originalProps[part] = {
-                Color = part.Color,
-                Material = part.Material
-            }
-        end
-        
-        -- Применяем ForceField
-        if cfg.apply then
-            if cfg.rainbow then part.Color = getRainbowColor()
-            else part.Color = (cfg.highlightSettings and cfg.highlightSettings.FillColor) or Color3.new(1,1,1) end
-            part.Material = Enum.Material.ForceField
-        end
-        
-        -- Применяем хайлайт, если нужно
-        if cfg.addHighlight and cfg.highlightSettings then
-            applyHighlight(part, cfg.highlightSettings, cfg.rainbow)
-        else
-            -- Удаляем хайлайт, если он есть, но не должен быть
-            local highlight = part:FindFirstChildOfClass("Highlight")
-            if highlight then highlight:Destroy() end
-        end
-    end
-end
-
--- Функция для восстановления свойств части персонажа
-local function restorePart(part)
-    if not part or not originalProps[part] then return end
-    
-    -- Сначала восстанавливаем материал, затем цвет
-    part.Material = originalProps[part].Material
-    part.Color = originalProps[part].Color
-    
-    -- Удаляем хайлайт
-    local highlight = part:FindFirstChildOfClass("Highlight")
-    if highlight then highlight:Destroy() end
-end
+-- Глобальные переменные для отслеживания состояния
+local highlightCheckConnection = nil
 
 -- Обновляем внешний вид персонажа
 function updateSelfChams()
@@ -1593,40 +1548,124 @@ function updateSelfChams()
     if not character then return end
     
     -- Обновляем части тела
-    updateParts(character, "bodyParts", function(char)
-        local parts = {}
-        for _, part in pairs(char:GetChildren()) do
-            if part:IsA("BasePart") then table.insert(parts, part) end
+    for _, part in pairs(character:GetChildren()) do
+        if part:IsA("BasePart") then
+            -- Сохраняем оригинальные свойства, если еще не сохранены
+            if not originalProps[part] then
+                originalProps[part] = {
+                    Color = part.Color,
+                    Material = part.Material
+                }
+            end
+            
+            if selfChamsSettings.bodyParts.apply then
+                if selfChamsSettings.bodyParts.rainbow then
+                    part.Color = getRainbowColor()
+                else
+                    part.Color = selfChamsSettings.bodyParts.highlightSettings.FillColor
+                end
+                part.Material = Enum.Material.ForceField
+            end
+            
+            if selfChamsSettings.bodyParts.addHighlight then
+                applyHighlight(part, selfChamsSettings.bodyParts.highlightSettings, selfChamsSettings.bodyParts.rainbow)
+            else
+                local highlight = part:FindFirstChildOfClass("Highlight")
+                if highlight then highlight:Destroy() end
+            end
         end
-        return parts
-    end)
+    end
     
     -- Обновляем аксессуары
-    updateParts(character, "accessories", function(char)
-        local parts = {}
-        for _, accessory in pairs(char:GetChildren()) do
-            if accessory:IsA("Accessory") then
-                local handle = accessory:FindFirstChild("Handle")
-                if handle and handle:IsA("BasePart") then table.insert(parts, handle) end
+    for _, accessory in pairs(character:GetChildren()) do
+        if accessory:IsA("Accessory") then
+            local handle = accessory:FindFirstChild("Handle")
+            if handle and handle:IsA("BasePart") then
+                -- Сохраняем оригинальные свойства, если еще не сохранены
+                if not originalProps[handle] then
+                    originalProps[handle] = {
+                        Color = handle.Color,
+                        Material = handle.Material
+                    }
+                end
+                
+                if selfChamsSettings.accessories.apply then
+                    if selfChamsSettings.accessories.rainbow then
+                        handle.Color = getRainbowColor()
+                    else
+                        handle.Color = selfChamsSettings.accessories.highlightSettings.FillColor
+                    end
+                    handle.Material = Enum.Material.ForceField
+                end
+                
+                if selfChamsSettings.accessories.addHighlight then
+                    applyHighlight(handle, selfChamsSettings.accessories.highlightSettings, selfChamsSettings.accessories.rainbow)
+                else
+                    local highlight = handle:FindFirstChildOfClass("Highlight")
+                    if highlight then highlight:Destroy() end
+                end
             end
         end
-        return parts
-    end)
+    end
     
     -- Обновляем предметы в руках
-    updateParts(character, "heldItems", function(char)
-        local parts = {}
-        local tool = char:FindFirstChildOfClass("Tool")
-        if tool then
-            for _, part in pairs(tool:GetDescendants()) do
-                if part:IsA("BasePart") then table.insert(parts, part) end
+    local tool = character:FindFirstChildOfClass("Tool")
+    if tool then
+        for _, part in pairs(tool:GetDescendants()) do
+            if part:IsA("BasePart") then
+                -- Сохраняем оригинальные свойства, если еще не сохранены
+                if not originalProps[part] then
+                    originalProps[part] = {
+                        Color = part.Color,
+                        Material = part.Material
+                    }
+                end
+                
+                if selfChamsSettings.heldItems.apply then
+                    if selfChamsSettings.heldItems.rainbow then
+                        part.Color = getRainbowColor()
+                    else
+                        part.Color = Color3.new(1, 1, 1) -- Белый по умолчанию
+                    end
+                    part.Material = Enum.Material.ForceField
+                end
             end
         end
-        return parts
-    end)
+    end
     
     -- Обновляем подключения
     setupConnections()
+end
+
+-- Функция для проверки и добавления хайлайтов к критическим частям
+local function checkAndApplyHighlights()
+    local character = Players.LocalPlayer.Character
+    if not character or not selfChamsSettings.enabled then return end
+    
+    -- Проверяем и добавляем хайлайты к частям тела
+    if selfChamsSettings.bodyParts.addHighlight then
+        for _, part in pairs(character:GetChildren()) do
+            if part:IsA("BasePart") then
+                if not part:FindFirstChildOfClass("Highlight") then
+                    applyHighlight(part, selfChamsSettings.bodyParts.highlightSettings, selfChamsSettings.bodyParts.rainbow)
+                end
+            end
+        end
+    end
+    
+    -- Проверяем и добавляем хайлайты к аксессуарам
+    if selfChamsSettings.accessories.addHighlight then
+        for _, accessory in pairs(character:GetChildren()) do
+            if accessory:IsA("Accessory") then
+                local handle = accessory:FindFirstChild("Handle")
+                if handle and handle:IsA("BasePart") then
+                    if not handle:FindFirstChildOfClass("Highlight") then
+                        applyHighlight(handle, selfChamsSettings.accessories.highlightSettings, selfChamsSettings.accessories.rainbow)
+                    end
+                end
+            end
+        end
+    end
 end
 
 -- Настройка подключений
@@ -1644,6 +1683,20 @@ function setupConnections()
         task.wait(0.5) -- Задержка для загрузки персонажа
         updateSelfChams()
     end)
+    
+    -- Отключаем существующее подключение для проверки хайлайтов
+    if highlightCheckConnection then
+        highlightCheckConnection:Disconnect()
+        highlightCheckConnection = nil
+    end
+    
+    -- Всегда запускаем проверку хайлайтов каждые 0.1 секунды, если включен Self Chams
+    if selfChamsSettings.enabled then
+        highlightCheckConnection = RunService.Heartbeat:Connect(function()
+            -- Не используем task.wait здесь, т.к. это может вызвать пропуски кадров
+            checkAndApplyHighlights()
+        end)
+    end
     
     -- Если включен радужный режим, настраиваем обновление
     local needsRainbowUpdate = 
@@ -1666,16 +1719,21 @@ function setupConnections()
                 
                 local character = Players.LocalPlayer.Character
                 if character then
-                    updateParts(character, "heldItems", function(char)
-                        local parts = {}
-                        local tool = char:FindFirstChildOfClass("Tool")
-                        if tool then
-                            for _, part in pairs(tool:GetDescendants()) do
-                                if part:IsA("BasePart") then table.insert(parts, part) end
+                    local tool = character:FindFirstChildOfClass("Tool")
+                    if tool then
+                        for _, part in pairs(tool:GetDescendants()) do
+                            if part:IsA("BasePart") then
+                                if selfChamsSettings.heldItems.apply then
+                                    if selfChamsSettings.heldItems.rainbow then
+                                        part.Color = getRainbowColor()
+                                    else
+                                        part.Color = Color3.new(1, 1, 1)
+                                    end
+                                    part.Material = Enum.Material.ForceField
+                                end
                             end
                         end
-                        return parts
-                    end)
+                    end
                 end
             end)
         end
@@ -1707,28 +1765,23 @@ function removeSelfChams()
         characterAddedConnection = nil
     end
     
+    if highlightCheckConnection then
+        highlightCheckConnection:Disconnect()
+        highlightCheckConnection = nil
+    end
+    
     -- Восстанавливаем оригинальные свойства
     local character = Players.LocalPlayer.Character
     if not character then return end
     
-    -- Восстанавливаем части тела
-    for _, part in pairs(character:GetChildren()) do
-        if part:IsA("BasePart") then restorePart(part) end
-    end
-    
-    -- Восстанавливаем аксессуары
-    for _, accessory in pairs(character:GetChildren()) do
-        if accessory:IsA("Accessory") then
-            local handle = accessory:FindFirstChild("Handle")
-            if handle and handle:IsA("BasePart") then restorePart(handle) end
-        end
-    end
-    
-    -- Восстанавливаем предметы в руках
-    local tool = character:FindFirstChildOfClass("Tool")
-    if tool then
-        for _, part in pairs(tool:GetDescendants()) do
-            if part:IsA("BasePart") then restorePart(part) end
+    -- Восстанавливаем все части тела
+    for _, part in pairs(character:GetDescendants()) do
+        if part:IsA("BasePart") and originalProps[part] then
+            part.Material = originalProps[part].Material
+            part.Color = originalProps[part].Color
+            
+            local highlight = part:FindFirstChildOfClass("Highlight")
+            if highlight then highlight:Destroy() end
         end
     end
     
@@ -1739,4 +1792,643 @@ end
 -- Глобальная функция для получения настроек Self Chams
 getgenv().GetSelfChamsSettings = function()
     return selfChamsSettings
+end
+
+-- Добавляем группбокс для Auras в правую часть вкладки
+local AurasGroupbox = VisualsTab:AddRightGroupbox("Auras")
+
+-- Локальная переменная для хранения настроек Auras
+local aurasSettings = {
+    enabled = false,
+    color1 = Color3.new(22/85, 4/17, 1), -- Синий цвет по умолчанию
+    color2 = Color3.new(22/85, 4/17, 1),
+    lightEmission = 1,
+    size = 10 -- Добавляем настройку размера
+}
+
+-- Глобальные переменные для отслеживания текущей ауры
+local currentAura = nil
+local characterAddedConnection = nil
+
+-- Главный переключатель Auras
+local AurasEnabled = AurasGroupbox:AddToggle("AurasEnabled", {
+    Text = "Aura Effect",
+    Default = false,
+    Callback = function(Value)
+        aurasSettings.enabled = Value
+        
+        if Value then
+            applyPlayerAura()
+        else
+            removePlayerAura()
+        end
+    end
+})
+
+-- Выбор цветов для градиента ауры
+local AuraColor1 = AurasEnabled:AddColorPicker("AuraColor1", {
+    Default = Color3.new(22/85, 4/17, 1),
+    Title = "Start Color",
+    Callback = function(Value)
+        aurasSettings.color1 = Value
+        if aurasSettings.enabled then
+            updateAuraColors()
+        end
+    end
+})
+
+local AuraColor2 = AurasEnabled:AddColorPicker("AuraColor2", {
+    Default = Color3.new(22/85, 4/17, 1),
+    Title = "End Color",
+    Callback = function(Value)
+        aurasSettings.color2 = Value
+        if aurasSettings.enabled then
+            updateAuraColors()
+        end
+    end
+})
+
+-- Слайдер для Light Emission
+AurasGroupbox:AddSlider("AuraLightEmission", {
+    Text = "Light Emission",
+    Default = 1,
+    Min = 0,
+    Max = 1,
+    Rounding = 2,
+    Compact = true,
+    Callback = function(Value)
+        aurasSettings.lightEmission = Value
+        if aurasSettings.enabled then
+            updateAuraLightEmission()
+        end
+    end
+})
+
+-- Добавляем слайдер для размера ауры
+AurasGroupbox:AddSlider("AuraSize", {
+    Text = "Aura Size",
+    Default = 10,
+    Min = 1,
+    Max = 20,
+    Rounding = 1,
+    Compact = true,
+    Callback = function(Value)
+        aurasSettings.size = Value
+        if aurasSettings.enabled then
+            updateAuraSize()
+        end
+    end
+})
+
+-- Функция для обновления цветов ауры
+function updateAuraColors()
+    if not currentAura or not currentAura.Parent then return end
+    
+    local swirlEmitter = currentAura:FindFirstChild("Attachment")
+    if swirlEmitter then
+        swirlEmitter = swirlEmitter:FindFirstChild("swirl")
+        if swirlEmitter then
+            swirlEmitter.Color = ColorSequence.new({
+                ColorSequenceKeypoint.new(0, aurasSettings.color1),
+                ColorSequenceKeypoint.new(1, aurasSettings.color2)
+            })
+        end
+    end
+end
+
+-- Функция для обновления Light Emission ауры
+function updateAuraLightEmission()
+    if not currentAura or not currentAura.Parent then return end
+    
+    local swirlEmitter = currentAura:FindFirstChild("Attachment")
+    if swirlEmitter then
+        swirlEmitter = swirlEmitter:FindFirstChild("swirl")
+        if swirlEmitter then
+            swirlEmitter.LightEmission = aurasSettings.lightEmission
+        end
+    end
+end
+
+-- Функция для обновления размера ауры
+function updateAuraSize()
+    if not currentAura or not currentAura.Parent then return end
+    
+    local swirlEmitter = currentAura:FindFirstChild("Attachment")
+    if swirlEmitter then
+        swirlEmitter = swirlEmitter:FindFirstChild("swirl")
+        if swirlEmitter then
+            swirlEmitter.Size = NumberSequence.new({
+                NumberSequenceKeypoint.new(0, aurasSettings.size),
+                NumberSequenceKeypoint.new(1, aurasSettings.size)
+            })
+        end
+    end
+end
+
+-- Функция для применения ауры игрока
+function applyPlayerAura()
+    local player = Players.LocalPlayer
+    local character = player.Character
+    
+    -- Если персонаж не существует, ждем его появления
+    if not character then
+        if characterAddedConnection then characterAddedConnection:Disconnect() end
+        characterAddedConnection = player.CharacterAdded:Connect(function(newCharacter)
+            if aurasSettings.enabled then
+                character = newCharacter
+                createPlayerAura(character)
+            end
+        end)
+        return
+    end
+    
+    createPlayerAura(character)
+    
+    -- Подключаем обработчик возрождения персонажа, если еще не подключен
+    if not characterAddedConnection then
+        characterAddedConnection = player.CharacterAdded:Connect(function(newCharacter)
+            if aurasSettings.enabled then
+                createPlayerAura(newCharacter)
+            end
+        end)
+    end
+end
+
+-- Функция для создания ауры персонажа
+function createPlayerAura(character)
+    -- Удаляем существующую ауру, если она есть
+    removePlayerAura()
+    
+    -- Получаем HumanoidRootPart
+    local humanoidRootPart = character:WaitForChild("HumanoidRootPart", 3)
+    if not humanoidRootPart then return end
+
+    -- Создаем невидимую часть для ауры
+    local auraBase = Instance.new("Part")
+    auraBase.Size = Vector3.new(1, 1, 1)
+    auraBase.Transparency = 1 -- Невидимая
+    auraBase.Anchored = false -- Для Weld
+    auraBase.CanCollide = false
+    auraBase.Name = "AuraBase"
+    auraBase.Parent = Workspace
+
+    -- Привязываем auraBase к HumanoidRootPart с помощью Weld
+    local weld = Instance.new("Weld")
+    weld.Part0 = humanoidRootPart
+    weld.Part1 = auraBase
+    weld.C0 = CFrame.new(0, 0, 0)
+    weld.Parent = auraBase
+
+    -- Attachment
+    local attachment = Instance.new("Attachment")
+    attachment.Parent = auraBase
+
+    -- ParticleEmitter: swirl
+    local swirlEmitter = Instance.new("ParticleEmitter")
+    swirlEmitter.Name = "swirl"
+    swirlEmitter.Texture = "rbxassetid://10558425570"
+    swirlEmitter.Lifetime = NumberRange.new(2)
+    swirlEmitter.Rate = 150
+    swirlEmitter.RotSpeed = NumberRange.new(200)
+    swirlEmitter.Speed = NumberRange.new(0.01)
+    swirlEmitter.SpreadAngle = Vector2.new(-360, 360)
+    swirlEmitter.VelocitySpread = -360
+    swirlEmitter.Size = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, aurasSettings.size),
+        NumberSequenceKeypoint.new(1, aurasSettings.size)
+    })
+    swirlEmitter.Transparency = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 1),
+        NumberSequenceKeypoint.new(0.5006, 0.5),
+        NumberSequenceKeypoint.new(1, 1)
+    })
+    swirlEmitter.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, aurasSettings.color1),
+        ColorSequenceKeypoint.new(1, aurasSettings.color2)
+    })
+    swirlEmitter.LightEmission = aurasSettings.lightEmission
+    swirlEmitter.ZOffset = -1
+    swirlEmitter.Orientation = Enum.ParticleOrientation.VelocityPerpendicular
+    swirlEmitter.LockedToPart = true
+    swirlEmitter.Parent = attachment
+
+    -- Сохраняем ссылку на текущую ауру
+    currentAura = auraBase
+end
+
+-- Функция для удаления ауры
+function removePlayerAura()
+    -- Удаляем текущую ауру, если она существует
+    if currentAura and currentAura.Parent then
+        currentAura:Destroy()
+    end
+    currentAura = nil
+end
+
+-- Глобальная функция для получения настроек Auras
+getgenv().GetAurasSettings = function()
+    return aurasSettings
+end
+
+-- Добавляем настройки для новой ауры (Tornado Aura)
+local tornadoAuraSettings = {
+    enabled = false,
+    beamColor = Color3.new(247/255, 47/255, 47/255),  -- Красный цвет по умолчанию
+    starColor = Color3.new(247/255, 47/255, 47/255),  -- Красный цвет для звезды
+    lightEmission = 0.8,
+    width = 4,
+    height = 6,
+    starTexture = "rbxassetid://8920246243" -- Текстура по умолчанию
+}
+
+-- Глобальные переменные для отслеживания текущей Tornado ауры
+local currentTornadoAura = nil
+local tornadoAuraConnection = nil
+
+-- Добавляем новый группбокс для TornadoAura
+local TornadoAuraGroupbox = VisualsTab:AddRightGroupbox("Tornado Aura")
+
+-- Главный переключатель Tornado Aura
+local TornadoAuraEnabled = TornadoAuraGroupbox:AddToggle("TornadoAuraEnabled", {
+    Text = "Tornado Effect",
+    Default = false,
+    Callback = function(Value)
+        tornadoAuraSettings.enabled = Value
+        
+        if Value then
+            applyTornadoAura()
+        else
+            removeTornadoAura()
+        end
+    end
+})
+
+-- Выбор цвета для Tornado ауры
+local TornadoAuraColor = TornadoAuraEnabled:AddColorPicker("TornadoAuraColor", {
+    Default = Color3.new(247/255, 47/255, 47/255),
+    Title = "Beam Color",
+    Callback = function(Value)
+        tornadoAuraSettings.beamColor = Value
+        if tornadoAuraSettings.enabled then
+            updateTornadoAuraColors()
+        end
+    end
+})
+
+local TornadoStarColor = TornadoAuraEnabled:AddColorPicker("TornadoStarColor", {
+    Default = Color3.new(247/255, 47/255, 47/255),
+    Title = "Star Color",
+    Callback = function(Value)
+        tornadoAuraSettings.starColor = Value
+        if tornadoAuraSettings.enabled then
+            updateTornadoAuraColors()
+        end
+    end
+})
+
+-- Слайдер для Light Emission
+TornadoAuraGroupbox:AddSlider("TornadoLightEmission", {
+    Text = "Light Emission",
+    Default = 0.8,
+    Min = 0,
+    Max = 1,
+    Rounding = 2,
+    Compact = true,
+    Callback = function(Value)
+        tornadoAuraSettings.lightEmission = Value
+        if tornadoAuraSettings.enabled then
+            updateTornadoAuraLightEmission()
+        end
+    end
+})
+
+-- Выпадающий список для выбора текстуры звезды
+TornadoAuraGroupbox:AddDropdown("StarTexture", {
+    Text = "Star Texture",
+    Default = "8920246243",
+    Values = {"8920246243", "10365549270", "5726444189", "1266170131", "12363692255", "12363692920"},
+    Tooltip = "Select texture for the star particle",
+    Callback = function(Value)
+        tornadoAuraSettings.starTexture = "rbxassetid://" .. Value
+        if tornadoAuraSettings.enabled then
+            updateTornadoAuraTexture()
+        end
+    end
+})
+
+-- Функция для обновления текстуры звезды
+function updateTornadoAuraTexture()
+    if not currentTornadoAura or not currentTornadoAura.Parent then return end
+    
+    local mainAttachment = currentTornadoAura:FindFirstChild("Main")
+    if mainAttachment then
+        local starEmitter = mainAttachment:FindFirstChild("Star")
+        if starEmitter and starEmitter:IsA("ParticleEmitter") then
+            starEmitter.Texture = tornadoAuraSettings.starTexture
+        end
+    end
+    
+    -- Искать эмиттер и в глубоко вложенных объектах
+    for _, obj in pairs(currentTornadoAura:GetDescendants()) do
+        if obj:IsA("ParticleEmitter") and obj.Name == "Star" then
+            obj.Texture = tornadoAuraSettings.starTexture
+        end
+    end
+end
+
+-- Функция для обновления цветов торнадо ауры
+function updateTornadoAuraColors()
+    if not currentTornadoAura or not currentTornadoAura.Parent then return end
+    
+    -- Обновляем цвет лучей используя глубокий поиск
+    local allDescendants = currentTornadoAura:GetDescendants()
+    for _, obj in pairs(allDescendants) do
+        if obj:IsA("Beam") then
+            obj.Color = ColorSequence.new(tornadoAuraSettings.beamColor)
+        elseif obj:IsA("ParticleEmitter") and obj.Name == "Star" then
+            obj.Color = ColorSequence.new({
+                ColorSequenceKeypoint.new(0, tornadoAuraSettings.starColor),
+                ColorSequenceKeypoint.new(1, tornadoAuraSettings.starColor)
+            })
+        end
+    end
+end
+
+-- Функция для обновления Light Emission торнадо ауры
+function updateTornadoAuraLightEmission()
+    if not currentTornadoAura or not currentTornadoAura.Parent then return end
+    
+    -- Обновляем Light Emission для всех объектов
+    local allDescendants = currentTornadoAura:GetDescendants()
+    for _, obj in pairs(allDescendants) do
+        if obj:IsA("Beam") or obj:IsA("ParticleEmitter") then
+            obj.LightEmission = tornadoAuraSettings.lightEmission
+        end
+    end
+end
+
+-- Функция для создания торнадо ауры персонажа
+function createTornadoAura(character)
+    -- Удаляем существующую ауру, если она есть
+    removeTornadoAura()
+    
+    -- Получаем HumanoidRootPart
+    local humanoidRootPart = character:WaitForChild("HumanoidRootPart", 3)
+    if not humanoidRootPart then return end
+
+    -- Создаем невидимую часть для ауры
+    local auraBase = Instance.new("Part")
+    auraBase.Size = Vector3.new(1, 1, 1)
+    auraBase.Transparency = 1 -- Невидимая
+    auraBase.Anchored = true -- Используем Anchored вместо Weld
+    auraBase.CanCollide = false
+    auraBase.Name = "TornadoAuraBase"
+    auraBase.Parent = Workspace
+
+    -- Устанавливаем начальную позицию
+    auraBase.CFrame = CFrame.new(humanoidRootPart.Position) * CFrame.new(0, -0.15, 0)
+    
+    -- Подключаем обновление позиции без учета поворота
+    local positionUpdateConnection
+    positionUpdateConnection = RunService.Heartbeat:Connect(function()
+        if not character or not humanoidRootPart or not humanoidRootPart.Parent or not auraBase or not auraBase.Parent then
+            if positionUpdateConnection then
+                positionUpdateConnection:Disconnect()
+                positionUpdateConnection = nil
+            end
+            return
+        end
+        
+        -- Обновляем только позицию, без учета поворота
+        local currentPos = humanoidRootPart.Position
+        auraBase.CFrame = CFrame.new(currentPos) * CFrame.new(0, -0.15, 0)
+    end)
+    
+    -- Сохраняем соединение для последующего отключения
+    auraBase:SetAttribute("PositionConnection", true)
+    auraBase.AncestryChanged:Connect(function()
+        if not auraBase:IsDescendantOf(Workspace) and positionUpdateConnection then
+            positionUpdateConnection:Disconnect()
+            positionUpdateConnection = nil
+        end
+    end)
+
+    -- Main Attachment для Particle Emitters
+    local mainAttachment = Instance.new("Attachment")
+    mainAttachment.Name = "Main"
+    mainAttachment.Position = Vector3.new(0, -2.75, 0)
+    mainAttachment.Parent = auraBase
+
+    -- Particle Emitter: Star
+    local starEmitter = Instance.new("ParticleEmitter")
+    starEmitter.Name = "Star"
+    starEmitter.Texture = tornadoAuraSettings.starTexture
+    starEmitter.Lifetime = NumberRange.new(9)
+    starEmitter.Rate = 0.333
+    starEmitter.RotSpeed = NumberRange.new(120)
+    starEmitter.Speed = NumberRange.new(0.001)
+    starEmitter.Size = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 3),
+        NumberSequenceKeypoint.new(1, 3)
+    })
+    starEmitter.Transparency = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 1),
+        NumberSequenceKeypoint.new(0.1, 0),
+        NumberSequenceKeypoint.new(0.5, 0),
+        NumberSequenceKeypoint.new(0.6256, 0.0875),
+        NumberSequenceKeypoint.new(0.7691, 0.3875),
+        NumberSequenceKeypoint.new(0.8677, 0.7125),
+        NumberSequenceKeypoint.new(0.9230, 0.875),
+        NumberSequenceKeypoint.new(0.9552, 0.9375),
+        NumberSequenceKeypoint.new(1, 0.975)
+    })
+    starEmitter.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, tornadoAuraSettings.starColor),
+        ColorSequenceKeypoint.new(1, tornadoAuraSettings.starColor)
+    })
+    starEmitter.LightEmission = tornadoAuraSettings.lightEmission
+    starEmitter.ZOffset = 0.05
+    starEmitter.Orientation = Enum.ParticleOrientation.VelocityPerpendicular
+    starEmitter.LockedToPart = true
+    starEmitter.Parent = mainAttachment
+
+    -- Attachments for Beams (One and Two)
+    local attachmentOne = Instance.new("Attachment")
+    attachmentOne.Name = "One"
+    attachmentOne.Position = Vector3.new(0, -2.8, 2.6)
+    attachmentOne.Parent = auraBase
+
+    local attachmentTwo = Instance.new("Attachment")
+    attachmentTwo.Name = "Two"
+    attachmentTwo.Position = Vector3.new(0, -2.8, -2.6)
+    attachmentTwo.Parent = auraBase
+
+    -- Beam 1: One
+    local beamOne = Instance.new("Beam")
+    beamOne.Name = "One"
+    beamOne.Texture = "rbxassetid://8920073892"
+    beamOne.TextureSpeed = -0.3
+    beamOne.TextureLength = 0.5
+    beamOne.Width0 = 4
+    beamOne.Width1 = 4
+    beamOne.CurveSize0 = -3.5
+    beamOne.CurveSize1 = 3.5
+    beamOne.Segments = 25
+    beamOne.LightEmission = tornadoAuraSettings.lightEmission
+    beamOne.Transparency = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 0.3),
+        NumberSequenceKeypoint.new(1, 0.3)
+    })
+    beamOne.Color = ColorSequence.new(tornadoAuraSettings.beamColor)
+    beamOne.Attachment0 = attachmentOne
+    beamOne.Attachment1 = attachmentTwo
+    beamOne.Parent = auraBase
+
+    -- Beam 2: Two
+    local beamTwo = Instance.new("Beam")
+    beamTwo.Name = "Two"
+    beamTwo.Texture = "rbxassetid://8920073892"
+    beamTwo.TextureSpeed = 0.3
+    beamTwo.TextureLength = 0.5
+    beamTwo.Width0 = 4
+    beamTwo.Width1 = 4
+    beamTwo.CurveSize0 = 3.5
+    beamTwo.CurveSize1 = -3.5
+    beamTwo.Segments = 25
+    beamTwo.LightEmission = tornadoAuraSettings.lightEmission
+    beamTwo.Transparency = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 0.3),
+        NumberSequenceKeypoint.new(1, 0.3)
+    })
+    beamTwo.Color = ColorSequence.new(tornadoAuraSettings.beamColor)
+    beamTwo.Attachment0 = attachmentOne
+    beamTwo.Attachment1 = attachmentTwo
+    beamTwo.Parent = auraBase
+
+    -- Attachments for Beams (Three and Four)
+    local attachmentThree = Instance.new("Attachment")
+    attachmentThree.Name = "Three"
+    attachmentThree.Position = Vector3.new(0, -2.7, 0)
+    attachmentThree.Parent = auraBase
+
+    local attachmentFour = Instance.new("Attachment")
+    attachmentFour.Name = "Four"
+    attachmentFour.Position = Vector3.new(0, 6, 0)
+    attachmentFour.Parent = auraBase
+
+    -- Beam 3: Three
+    local beamThree = Instance.new("Beam")
+    beamThree.Name = "Three"
+    beamThree.Texture = "rbxassetid://9020147050"
+    beamThree.TextureSpeed = 0.3
+    beamThree.TextureLength = 0.1
+    beamThree.Width0 = 5
+    beamThree.Width1 = 6
+    beamThree.Segments = 5
+    beamThree.LightEmission = tornadoAuraSettings.lightEmission
+    beamThree.Transparency = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 1),
+        NumberSequenceKeypoint.new(0.1, 1),
+        NumberSequenceKeypoint.new(0.4, 0.4),
+        NumberSequenceKeypoint.new(1, 1)
+    })
+    beamThree.Color = ColorSequence.new(tornadoAuraSettings.beamColor)
+    beamThree.FaceCamera = true
+    beamThree.Attachment0 = attachmentThree
+    beamThree.Attachment1 = attachmentFour
+    beamThree.Parent = auraBase
+
+    -- Beam 4: Four
+    local beamFour = Instance.new("Beam")
+    beamFour.Name = "Four"
+    beamFour.Texture = "rbxassetid://8984452855"
+    beamFour.TextureSpeed = 0.06
+    beamFour.TextureLength = 0.4
+    beamFour.Width0 = 5
+    beamFour.Width1 = 6
+    beamFour.Segments = 5
+    beamFour.LightEmission = tornadoAuraSettings.lightEmission
+    beamFour.Transparency = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 0.3),
+        NumberSequenceKeypoint.new(1, 1)
+    })
+    beamFour.Color = ColorSequence.new(tornadoAuraSettings.beamColor)
+    beamFour.FaceCamera = true
+    beamFour.Attachment0 = attachmentThree
+    beamFour.Attachment1 = attachmentFour
+    beamFour.Parent = auraBase
+
+    -- Beam 5: Five
+    local beamFive = Instance.new("Beam")
+    beamFive.Name = "Five"
+    beamFive.Texture = "http://www.roblox.com/asset/?id=4390493166"
+    beamFive.TextureSpeed = 0.2
+    beamFive.TextureLength = 0.15
+    beamFive.Width0 = 4
+    beamFive.Width1 = 4
+    beamFive.Segments = 5
+    beamFive.LightEmission = tornadoAuraSettings.lightEmission
+    beamFive.Transparency = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 0.3),
+        NumberSequenceKeypoint.new(1, 1)
+    })
+    beamFive.Color = ColorSequence.new(tornadoAuraSettings.beamColor)
+    beamFive.FaceCamera = true
+    beamFive.Attachment0 = attachmentThree
+    beamFive.Attachment1 = attachmentFour
+    beamFive.Parent = auraBase
+
+    -- Сохраняем ссылку на текущую Tornado ауру
+    currentTornadoAura = auraBase
+    return auraBase
+end
+
+-- Функция для удаления торнадо ауры
+function removeTornadoAura()
+    -- Удаляем текущую ауру, если она существует
+    if currentTornadoAura and currentTornadoAura.Parent then
+        currentTornadoAura:Destroy()
+    end
+    
+    currentTornadoAura = nil
+    
+    -- Отключаем соединение обработки персонажа, если оно существует
+    if tornadoAuraConnection then
+        tornadoAuraConnection:Disconnect()
+        tornadoAuraConnection = nil
+    end
+end
+
+-- Глобальная функция для получения настроек Tornado Aura
+getgenv().GetTornadoAuraSettings = function()
+    return tornadoAuraSettings
+end
+
+-- Функция для применения Tornado Aura
+function applyTornadoAura()
+    local player = Players.LocalPlayer
+    local character = player.Character
+    
+    -- Если персонаж не существует, ждем его появления
+    if not character then
+        if tornadoAuraConnection then tornadoAuraConnection:Disconnect() end
+        tornadoAuraConnection = player.CharacterAdded:Connect(function(newCharacter)
+            if tornadoAuraSettings.enabled then
+                character = newCharacter
+                createTornadoAura(character)
+            end
+        end)
+        return
+    end
+    
+    createTornadoAura(character)
+    
+    -- Подключаем обработчик возрождения персонажа, если еще не подключен
+    if not tornadoAuraConnection then
+        tornadoAuraConnection = player.CharacterAdded:Connect(function(newCharacter)
+            if tornadoAuraSettings.enabled then
+                createTornadoAura(newCharacter)
+            end
+        end)
+    end
 end
