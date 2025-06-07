@@ -13,7 +13,12 @@ esp.visiblecheck = false    -- Проверка видимости выключ�
 esp.outlines = true         -- Обводка включена
 esp.limitdistance = false   -- Ограничение дистанции выключено
 esp.maxdistance = 5000      -- Максимальная дистанция (если включено)
-esp.fadefactor = 20         -- Фактор затухания по дистанции
+
+-- Настройки трейсеров
+esp.tracers = false         -- Трейсеры выключены по умолчанию
+esp.tracer_color = Color3.fromRGB(255, 255, 255)  -- Цвет трейсеров (белый)
+esp.tracer_origin = "Bottom" -- Место начала трейсеров (Bottom, Top, Center, Mouse)
+esp.tracer_thickness = 1    -- Толщина трейсеров
 
 -- Настройка боксов
 esp.team_boxes[1] = false                       -- Выключены по умолчанию
@@ -43,6 +48,32 @@ esp.fixed_box_height = 6          -- Высота бокса
 
 -- Деактивируем настройки врагов, так как они не используются
 esp.enemy_boxes[1] = false
+
+-- Переменная для отслеживания положения мыши
+local mousePosition = Vector2.new(0, 0)
+game:GetService("UserInputService").InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement then
+        mousePosition = Vector2.new(input.Position.X, input.Position.Y)
+    end
+end)
+
+-- Функция для получения начальной точки трейсера
+local function getTracerOrigin()
+    local camera = game:GetService("Workspace").CurrentCamera
+    local viewportSize = camera.ViewportSize
+    
+    if esp.tracer_origin == "Bottom" then
+        return Vector2.new(viewportSize.X / 2, viewportSize.Y)
+    elseif esp.tracer_origin == "Top" then
+        return Vector2.new(viewportSize.X / 2, 0)
+    elseif esp.tracer_origin == "Center" then
+        return Vector2.new(viewportSize.X / 2, viewportSize.Y / 2)
+    elseif esp.tracer_origin == "Mouse" then
+        return mousePosition
+    else
+        return Vector2.new(viewportSize.X / 2, viewportSize.Y) -- По умолчанию снизу
+    end
+end
 
 -- Исправляем проблему с "застреванием" ESP элементов
 -- Переопределяем функцию удаления ESP объектов
@@ -94,7 +125,7 @@ end
 -- Сохраняем оригинальную функцию обновления ESP
 local originalUpdate = esp.update
 
--- Переопределяем функцию update для поддержки настройки толщины полоски здоровья
+-- Переопределяем функцию update для поддержки настройки толщины полоски здоровья и трейсеров
 esp.update = function()
     -- Очистка несуществующих игроков
     for plrName, _ in next, esp.players do
@@ -133,20 +164,22 @@ esp.update = function()
             end
             
             local pass = esp:check(player)
-            local _, onScreen = game.Workspace.CurrentCamera:WorldToViewportPoint(character.HumanoidRootPart.Position)
+            local position, onScreen = game.Workspace.CurrentCamera:WorldToViewportPoint(character.HumanoidRootPart.Position)
             local centerMassPos = character.HumanoidRootPart.CFrame
-            local transparency = esp:fadeviadistance({
-                limit = esp.limitdistance,
-                cframe = centerMassPos,
-                maxdistance = esp.maxdistance,
-                factor = esp.fadefactor
-            })
+            local transparency = 1
+            if esp.limitdistance then
+                local distance = (game.Workspace.CurrentCamera.CFrame.Position - centerMassPos.Position).Magnitude
+                if distance > esp.maxdistance then
+                    esp:disable(player)
+                    continue
+                end
+            end
             local health = math.floor(character.Humanoid.Health)
             
-            -- Раньше сначала вызываем оригинальную функцию
+            -- Вызываем оригинальную функцию
             originalUpdate()
             
-            -- После этого корректируем толщину полоски здоровья
+            -- Обновляем толщину полоски здоровья
             local flag = 'team_'
             if esp.checkteam(player, false) then flag = 'enemy_' end
             if table.find(esp.priority_players, player) then flag = 'priority_' end
@@ -198,6 +231,33 @@ esp.update = function()
                 drawing.distance_outline.Font = Drawing.Fonts[esp.font] or 1
             end
             
+            -- Обновляем трейсер
+            if onScreen and position then
+                -- Создаем трейсер, если его еще нет
+                if not drawing.tracer then
+                    drawing.tracer = Drawing.new("Line")
+                    drawing.tracer.Thickness = esp.tracer_thickness
+                    drawing.tracer.Color = esp.tracer_color
+                    drawing.tracer.Transparency = 1
+                    drawing.tracer.Visible = false
+                end
+                
+                -- Обновляем видимость трейсера
+                drawing.tracer.Visible = esp.tracers
+                
+                -- Если трейсеры включены, обновляем их позицию
+                if esp.tracers then
+                    local origin = getTracerOrigin()
+                    drawing.tracer.From = origin
+                    drawing.tracer.To = Vector2.new(position.X, position.Y)
+                    drawing.tracer.Thickness = esp.tracer_thickness
+                    drawing.tracer.Color = esp.tracer_color
+                    drawing.tracer.Transparency = 1
+                end
+            elseif drawing.tracer then
+                drawing.tracer.Visible = false
+            end
+            
             -- Всегда отключаем отображение оружия
             if drawing.weapon then
                 drawing.weapon.Visible = false
@@ -234,6 +294,15 @@ esp.addplayer = function(self, plr)
         
         if drawing.distance_outline then
             drawing.distance_outline.Font = Drawing.Fonts[self.font] or 1
+        end
+        
+        -- Добавляем трейсер, если он нужен
+        if not drawing.tracer then
+            drawing.tracer = Drawing.new("Line")
+            drawing.tracer.Thickness = self.tracer_thickness
+            drawing.tracer.Color = self.tracer_color
+            drawing.tracer.Transparency = 1
+            drawing.tracer.Visible = self.tracers
         end
     end
     
@@ -399,17 +468,51 @@ ESPGroupbox:AddSlider("MaxDistance", {
     end
 })
 
--- Слайдер для фактора затухания
-ESPGroupbox:AddSlider("FadeFactor", {
-    Text = "FadeFactor",
-    Default = 20,
-    Min = 5, 
-    Max = 100,
+-- Раздел для трейсеров
+local TracersSection = ESPGroupbox:AddDivider()
+
+-- Переключатель для трейсеров
+local TracersToggle = ESPGroupbox:AddToggle("Tracers", {
+    Text = "Tracers",
+    Default = false,
+    Tooltip = "Draw lines to players",
+    Callback = function(Value)
+        esp.tracers = Value
+    end
+})
+
+-- Добавляем выбор цвета для трейсеров
+local TracersColor = TracersToggle:AddColorPicker("TracersColor", {
+    Default = Color3.fromRGB(255, 255, 255), -- Белый цвет
+    Title = "Color",
+    Transparency = 0,
+    Callback = function(Value)
+        esp.tracer_color = Value
+    end
+})
+
+-- Выбор начальной точки трейсера
+ESPGroupbox:AddDropdown("TracerOrigin", {
+    Text = "Origin",
+    Default = "Bottom",
+    Values = {"Bottom", "Top", "Center"},
+    Tooltip = "Where to draw tracers from",
+    Callback = function(Value)
+        esp.tracer_origin = Value
+    end
+})
+
+-- Слайдер для толщины трейсеров
+ESPGroupbox:AddSlider("TracerThickness", {
+    Text = "Thickness",
+    Default = 1,
+    Min = 1,
+    Max = 5,
     Rounding = 0,
     Compact = false,
-    Tooltip = "Controls how quickly ESP fades with distance",
+    Tooltip = "Tracer line thickness",
     Callback = function(Value)
-        esp.fadefactor = Value
+        esp.tracer_thickness = Value
     end
 })
 
