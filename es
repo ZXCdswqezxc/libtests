@@ -4,6 +4,15 @@ local coregui = game:GetService('CoreGui')
 local players = game:GetService('Players')
 local localPlayer = players.LocalPlayer
 local camera = workspace.CurrentCamera
+local UserInputService = game:GetService("UserInputService")
+
+-- Переменная для отслеживания положения мыши
+local mousePosition = Vector2.new(0, 0)
+UserInputService.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement then
+        mousePosition = Vector2.new(input.Position.X, input.Position.Y)
+    end
+end)
 
 local esp = {
     -- settings
@@ -13,6 +22,12 @@ local esp = {
     outlines = true,
     limitdistance = false,
     shortnames = false,
+    
+    -- настройки трейсеров
+    tracers = false,         -- трейсеры выключены по умолчанию
+    tracer_color = Color3.new(1, 1, 1),  -- цвет трейсеров (белый)
+    tracer_origin = "Bottom", -- точка начала (Bottom, Top, Center, Mouse)
+    tracer_thickness = 1,     -- толщина линии трейсера
     
     -- настройки фиксированного размера боксов
     fixed_size_enabled = false, -- включение/отключение фиксированного размера
@@ -239,7 +254,9 @@ function esp:add(plr)
         arrow_kevlarbar_outline = esp:draw('Square', { Filled = true, Thickness = 1 }),
         arrow_kevlarbar_inline = esp:draw('Square', { Filled = true, Thickness = 1, Color = NEWCOLOR3(0.3, 0.3, 0.3) }),
         arrow_kevlarbar = esp:draw('Square', { Filled = true, Thickness = 1, Color = NEWCOLOR3(1,1,1) }),
-        arrow = esp:draw('Triangle', { Filled = true, Thickness = 1, });
+        arrow = esp:draw('Triangle', { Filled = true, Thickness = 1, }),
+        -- tracer
+        tracer = esp:draw('Line', { Thickness = 1, Color = NEWCOLOR3(1,1,1), Transparency = 1, Visible = false }),
         -- bars
         bar_outline = esp:draw('Square', { Filled = true, Thickness = 1 }),
         bar_inline = esp:draw('Square', { Filled = true, Thickness = 1, Color = NEWCOLOR3(0.3, 0.3, 0.3) }),
@@ -324,6 +341,23 @@ function esp:returnFixedOffsets(character)
     }
 end
 
+-- Функция для получения начальной точки трейсера
+function esp:getTracerOrigin()
+    local viewportSize = camera.ViewportSize
+    
+    if self.tracer_origin == "Bottom" then
+        return Vector2.new(viewportSize.X / 2, viewportSize.Y)
+    elseif self.tracer_origin == "Top" then
+        return Vector2.new(viewportSize.X / 2, 0)
+    elseif self.tracer_origin == "Center" then
+        return Vector2.new(viewportSize.X / 2, viewportSize.Y / 2)
+    elseif self.tracer_origin == "Mouse" then
+        return mousePosition
+    else
+        return Vector2.new(viewportSize.X / 2, viewportSize.Y) -- По умолчанию снизу
+    end
+end
+
 function esp:update()
     for plr, drawing in next, esp.players do
         local player = players:FindFirstChild(plr)
@@ -333,7 +367,7 @@ function esp:update()
             local playerName = LEN(plr) > esp.maxchar and esp.shortnames and SUB(plr, 0, esp.maxchar) .. '..' or plr
             local pass = esp:check(player)
             local distance = tostring(FLOOR((character.PrimaryPart.CFrame.p - camera.CFrame.p).Magnitude  / 3))  .. 'm'
-            local _, onScreen = camera:WorldToViewportPoint(character['HumanoidRootPart'].Position)
+            local position, onScreen = camera:WorldToViewportPoint(character['HumanoidRootPart'].Position)
             local centerMassPos = character['HumanoidRootPart'].CFrame
             local transparency = esp:fadeviadistance({
                 limit = esp.limitdistance,
@@ -358,6 +392,24 @@ function esp:update()
 
             if not (pass and onScreen) then
                 esp:disable(player)
+            end
+
+            -- Обновляем трейсер
+            if pass then
+                drawing.tracer.Visible = esp.tracers and onScreen
+                
+                if drawing.tracer.Visible then
+                    local origin = esp:getTracerOrigin()
+                    drawing.tracer.From = origin
+                    drawing.tracer.To = Vector2.new(position.X, position.Y)
+                    drawing.tracer.Color = esp.tracer_color
+                    drawing.tracer.Thickness = esp.tracer_thickness
+                    drawing.tracer.Transparency = transparency
+                end
+            else
+                if drawing.tracer then
+                    drawing.tracer.Visible = false
+                end
             end
 
             -- arrows
