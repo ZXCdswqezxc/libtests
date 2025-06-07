@@ -4,15 +4,6 @@ local coregui = game:GetService('CoreGui')
 local players = game:GetService('Players')
 local localPlayer = players.LocalPlayer
 local camera = workspace.CurrentCamera
-local UserInputService = game:GetService("UserInputService")
-
--- Переменная для отслеживания положения мыши
-local mousePosition = Vector2.new(0, 0)
-UserInputService.InputChanged:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseMovement then
-        mousePosition = Vector2.new(input.Position.X, input.Position.Y)
-    end
-end)
 
 local esp = {
     -- settings
@@ -26,7 +17,7 @@ local esp = {
     -- настройки трейсеров
     tracers = false,         -- трейсеры выключены по умолчанию
     tracer_color = Color3.new(1, 1, 1),  -- цвет трейсеров (белый)
-    tracer_origin = "Bottom", -- точка начала (Bottom, Top, Center, Mouse)
+    tracer_origin = "Bottom", -- точка начала (Bottom, Top, Center)
     tracer_thickness = 1,     -- толщина линии трейсера
     
     -- настройки фиксированного размера боксов
@@ -351,8 +342,6 @@ function esp:getTracerOrigin()
         return Vector2.new(viewportSize.X / 2, 0)
     elseif self.tracer_origin == "Center" then
         return Vector2.new(viewportSize.X / 2, viewportSize.Y / 2)
-    elseif self.tracer_origin == "Mouse" then
-        return mousePosition
     else
         return Vector2.new(viewportSize.X / 2, viewportSize.Y) -- По умолчанию снизу
     end
