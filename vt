@@ -1,0 +1,277 @@
+local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
+local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
+local ThemeManager = loadstring(game:HttpGet(repo .. "addons/ThemeManager.lua"))()
+local SaveManager = loadstring(game:HttpGet(repo .. "addons/SaveManager.lua"))()
+
+-- Загружаем оригинальную библиотеку ESP
+local esp = loadstring(game:HttpGet('https://raw.githubusercontent.com/ZXCdswqezxc/libtests/refs/heads/main/esp'))()
+
+-- Инициализируем настройки ESP
+esp.enabled = false         -- ESP выключен по умолчанию
+esp.teamcheck = false       -- Проверка команды выключена
+esp.visiblecheck = false    -- Проверка видимости выключена
+esp.outlines = true         -- Обводка включена
+esp.limitdistance = false   -- Ограничение дистанции выключено
+esp.maxdistance = 1200      -- Максимальная дистанция (если включено)
+
+-- Настройка боксов
+esp.team_boxes[1] = false                       -- Выключены по умолчанию
+esp.team_boxes[2] = Color3.fromRGB(0, 255, 0)   -- Зелёный цвет
+esp.team_boxes[3] = Color3.fromRGB(0, 255, 0)   -- Цвет заливки
+esp.team_boxes[4] = 0.2                         -- Прозрачность заливки
+
+-- Настройка полосок здоровья
+esp.team_healthbar[1] = false                   -- Выключены по умолчанию
+esp.team_healthbar[2] = Color3.fromRGB(0, 255, 0)  -- Цвет полного здоровья (зелёный)
+esp.team_healthbar[3] = Color3.fromRGB(255, 0, 0)  -- Цвет низкого здоровья (красный)
+esp.healthbar_thickness = 1                     -- Толщина полоски здоровья в пикселях
+
+-- Настройка фиксированных размеров
+esp.fixed_size_enabled = true      -- Включаем фиксированные размеры по умолчанию
+esp.fixed_box_width = 4           -- Ширина бокса
+esp.fixed_box_height = 6          -- Высота бокса
+
+-- Деактивируем настройки врагов, так как они не используются
+esp.enemy_boxes[1] = false
+
+-- Сохраняем оригинальную функцию обновления ESP
+local originalUpdate = esp.update
+
+-- Переопределяем функцию update для поддержки настройки толщины полоски здоровья
+esp.update = function()
+    for plr, drawing in next, esp.players do
+        local player = game:GetService('Players'):FindFirstChild(plr)
+        if not player then esp.players[plr] = nil continue end
+        
+        if esp.enabled and esp.checkalive(player) then
+            local character = esp.getcharacter(player)
+            local pass = esp:check(player)
+            local _, onScreen = game.Workspace.CurrentCamera:WorldToViewportPoint(character.HumanoidRootPart.Position)
+            local centerMassPos = character.HumanoidRootPart.CFrame
+            local transparency = esp:fadeviadistance({
+                limit = esp.limitdistance,
+                cframe = centerMassPos,
+                maxdistance = esp.maxdistance,
+                factor = esp.fadefactor
+            })
+            local health = math.floor(character.Humanoid.Health)
+            
+            -- Раньше сначала вызываем оригинальную функцию
+            originalUpdate()
+            
+            -- После этого корректируем толщину полоски здоровья
+            local flag = 'team_'
+            if esp.checkteam(player, false) then flag = 'enemy_' end
+            if table.find(esp.priority_players, player) then flag = 'priority_' end
+            
+            -- Обновляем толщину полоски здоровья
+            if drawing.bar and drawing.bar.Visible then
+                local smallestX, biggestX, smallestY, biggestY
+                
+                -- Находим координаты бокса
+                for i, renderedObj in pairs(drawing) do
+                    if i == 'box' and renderedObj.Visible then
+                        smallestX = renderedObj.Position.X
+                        smallestY = renderedObj.Position.Y
+                        biggestX = smallestX + renderedObj.Size.X
+                        biggestY = smallestY + renderedObj.Size.Y
+                        break
+                    end
+                end
+                
+                if smallestX and smallestY and biggestY then
+                    local thickness = esp.healthbar_thickness or 1
+                    
+                    -- Обновляем размеры и положение полоски здоровья
+                    drawing.bar.Size = Vector2.new(thickness, (-health / 100 * (biggestY - smallestY + 2)) + 3) 
+                    drawing.bar.Position = Vector2.new(smallestX - thickness - 2, smallestY + drawing.bar_outline.Size.Y)
+                    
+                    drawing.bar_inline.Size = Vector2.new(thickness, (- 1 * (biggestY - smallestY + 2)) + 3)
+                    drawing.bar_inline.Position = drawing.bar.Position
+                    
+                    drawing.bar_outline.Size = Vector2.new(thickness, biggestY - smallestY)
+                    drawing.bar_outline.Position = Vector2.new(smallestX - thickness - 1, smallestY + 1)
+                end
+            end
+        else
+            esp:disable(player)
+        end
+    end
+end
+
+-- Services
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+-- Optimization Variables
+local LocalPlayer = Players.LocalPlayer
+local Camera = Workspace.CurrentCamera
+local BotsFolder = Workspace:FindFirstChild("Bots") or Instance.new("Folder", Workspace)
+local Inf = math.huge
+
+-- Create the main window
+local Window = Library:CreateWindow({
+    Title = "TitanCX",
+    Footer = "Cursed by 32vision",
+    ShowCustomCursor = false,
+})
+
+local VisualsTab = Window:AddTab("Visuals", "eye")
+
+-- ESP Section
+local ESPGroupbox = VisualsTab:AddLeftGroupbox("ESP")
+
+-- Основной переключатель ESP
+local ESPToggle = ESPGroupbox:AddToggle("ESPEnabled", {
+    Text = "ESP",
+    Default = false,
+    Tooltip = "Enables ESP visualization",
+    Callback = function(Value)
+        esp.enabled = Value
+    end
+})
+
+-- Переключатель для боксов
+local BoxesToggle = ESPGroupbox:AddToggle("Boxes", {
+    Text = "Boxes",
+    Default = false,
+    Tooltip = "Displays boxes around players",
+    Callback = function(Value)
+        esp.team_boxes[1] = Value
+    end
+})
+
+-- Добавляем выбор цвета для боксов
+local BoxesColor = BoxesToggle:AddColorPicker("BoxesColor", {
+    Default = Color3.fromRGB(0, 255, 0), -- Зеленый цвет
+    Title = "Outline",
+    Transparency = 0,
+    Callback = function(Value)
+        esp.team_boxes[2] = Value
+    end
+})
+
+-- Добавляем выбор цвета заливки для боксов
+local BoxesFillColor = BoxesToggle:AddColorPicker("BoxesFillColor", {
+    Default = Color3.fromRGB(0, 255, 0), -- Зеленый цвет
+    Title = "Fill",
+    Transparency = 0,
+    Callback = function(Value)
+        esp.team_boxes[3] = Value
+    end
+})
+
+-- Слайдер для прозрачности заливки
+ESPGroupbox:AddSlider("BoxFillTransparency", {
+    Text = "Transparency",
+    Default = 0.2,
+    Min = 0,
+    Max = 1,
+    Rounding = 2,
+    Compact = false,
+    Callback = function(Value)
+        esp.team_boxes[4] = Value
+    end
+})
+
+-- Переключатель для полосок здоровья
+local HealthbarToggle = ESPGroupbox:AddToggle("Healthbar", {
+    Text = "Healthbar",
+    Default = false,
+    Tooltip = "Displays health bars next to players",
+    Callback = function(Value)
+        esp.team_healthbar[1] = Value
+    end
+})
+
+-- Выбор цвета для максимального здоровья
+local HealthbarMaxColor = HealthbarToggle:AddColorPicker("HealthbarMaxColor", {
+    Default = Color3.fromRGB(0, 255, 0), -- Зеленый цвет
+    Title = "MaxHP",
+    Transparency = 0,
+    Callback = function(Value)
+        esp.team_healthbar[2] = Value
+    end
+})
+
+-- Выбор цвета для низкого здоровья
+local HealthbarLowColor = HealthbarToggle:AddColorPicker("HealthbarLowColor", {
+    Default = Color3.fromRGB(255, 0, 0), -- Красный цвет
+    Title = "LowHP",
+    Transparency = 0,
+    Callback = function(Value)
+        esp.team_healthbar[3] = Value
+    end
+})
+
+-- Слайдер для настройки толщины полосок здоровья
+ESPGroupbox:AddSlider("HealthbarThickness", {
+    Text = "HPBarThickness",
+    Default = 1,
+    Min = 1,
+    Max = 5,
+    Rounding = 0,
+    Compact = false,
+    Tooltip = "Adjusts the thickness of health bars in pixels",
+    Callback = function(Value)
+        esp.healthbar_thickness = Value
+    end
+})
+
+-- Настройка фиксированных размеров
+ESPGroupbox:AddToggle("FixedSizeToggle", {
+    Text = "FixedSize",
+    Default = true,
+    Tooltip = "Use fixed size for ESP boxes",
+    Callback = function(Value)
+        esp.fixed_size_enabled = Value
+    end
+})
+
+-- Слайдеры для настройки размеров боксов
+ESPGroupbox:AddSlider("BoxWidthSlider", {
+    Text = "Width",
+    Default = 4,
+    Min = 1,
+    Max = 10,
+    Rounding = 1,
+    Compact = false,
+    Callback = function(Value)
+        esp.fixed_box_width = Value
+    end
+})
+
+ESPGroupbox:AddSlider("BoxHeightSlider", {
+    Text = "Height",
+    Default = 6,
+    Min = 1,
+    Max = 15,
+    Rounding = 1,
+    Compact = false,
+    Callback = function(Value)
+        esp.fixed_box_height = Value
+    end
+})
+
+-- Переключатель для проверки видимости
+ESPGroupbox:AddToggle("VisibleCheck", {
+    Text = "VisibleCheck",
+    Default = false,
+    Tooltip = "Only show ESP for visible players",
+    Callback = function(Value)
+        esp.visiblecheck = Value
+    end
+})
+
+-- Добавляем переключатель для обводки
+ESPGroupbox:AddToggle("Outlines", {
+    Text = "Outlines",
+    Default = true,
+    Tooltip = "Enables outlines for ESP elements",
+    Callback = function(Value)
+        esp.outlines = Value
+    end
+})
