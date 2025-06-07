@@ -18,6 +18,9 @@ local esp = {
     fixed_size_enabled = false, -- включение/отключение фиксированного размера
     fixed_box_width = 4,       -- ширина фиксированного бокса
     fixed_box_height = 6,      -- высота фиксированного бокса
+    
+    -- настройка толщины полосок здоровья
+    healthbar_thickness = 1,   -- толщина полоски здоровья
 
     maxchar = 4,
     maxdistance = 1200,
@@ -378,14 +381,14 @@ function esp:update()
                     drawing.arrow_bar_outline.Visible = esp.outlines and drawing.arrow_bar.Visible
                     if drawing.arrow_bar.Visible then
                         drawing.arrow_bar.Color = esp[ flag .. 'healthbar'][3]:Lerp(esp[ flag .. 'healthbar'][2], health / 100)
-                        drawing.arrow_bar.Size = esp:floorvector(NEWVEC2(1, ( - health / 100 * ( biggestY - smallestY + 2)) + 3))
-                        drawing.arrow_bar.Position = esp:floorvector(NEWVEC2(smallestX - 3, smallestY + drawing.arrow_bar_outline.Size.Y))
+                        drawing.arrow_bar.Size = esp:floorvector(NEWVEC2(esp.healthbar_thickness, ( - health / 100 * ( biggestY - smallestY + 2)) + 3))
+                        drawing.arrow_bar.Position = esp:floorvector(NEWVEC2(smallestX - esp.healthbar_thickness - 2, smallestY + drawing.arrow_bar_outline.Size.Y))
                         drawing.arrow_bar.Transparency = transparency
-                        drawing.arrow_bar_inline.Size = esp:floorvector(NEWVEC2(1, ( - 1 * ( biggestY - smallestY + 2)) + 3))
+                        drawing.arrow_bar_inline.Size = esp:floorvector(NEWVEC2(esp.healthbar_thickness, ( - 1 * ( biggestY - smallestY + 2)) + 3))
                         drawing.arrow_bar_inline.Position = drawing.arrow_bar.Position
                         drawing.arrow_bar_inline.Transparency = transparency
-                        drawing.arrow_bar_outline.Size = esp:floorvector(NEWVEC2(1, biggestY - smallestY))
-                        drawing.arrow_bar_outline.Position = esp:floorvector(NEWVEC2(smallestX - 2, smallestY + 1))
+                        drawing.arrow_bar_outline.Size = esp:floorvector(NEWVEC2(esp.healthbar_thickness, biggestY - smallestY))
+                        drawing.arrow_bar_outline.Position = esp:floorvector(NEWVEC2(smallestX - esp.healthbar_thickness - 1, smallestY + 1))
                         drawing.arrow_bar_outline.Transparency = transparency
                     end
 
@@ -498,14 +501,14 @@ function esp:update()
             drawing.bar_outline.Visible = esp.outlines and drawing.bar.Visible
             if drawing.bar.Visible then
                 drawing.bar.Color = esp[ flag .. 'healthbar'][3]:Lerp(esp[ flag .. 'healthbar'][2], health / 100)
-                drawing.bar.Size = esp:floorvector(NEWVEC2(1, ( - health / 100 * ( biggestY - smallestY + 2)) + 3))
-                drawing.bar.Position = esp:floorvector(NEWVEC2(smallestX - 3, smallestY + drawing.bar_outline.Size.Y))
+                drawing.bar.Size = esp:floorvector(NEWVEC2(esp.healthbar_thickness, ( - health / 100 * ( biggestY - smallestY + 2)) + 3))
+                drawing.bar.Position = esp:floorvector(NEWVEC2(smallestX - esp.healthbar_thickness - 2, smallestY + drawing.bar_outline.Size.Y))
                 drawing.bar.Transparency = transparency
-                drawing.bar_inline.Size = esp:floorvector(NEWVEC2(1, ( - 1 * ( biggestY - smallestY + 2)) + 3))
+                drawing.bar_inline.Size = esp:floorvector(NEWVEC2(esp.healthbar_thickness, ( - 1 * ( biggestY - smallestY + 2)) + 3))
                 drawing.bar_inline.Position = drawing.bar.Position
                 drawing.bar_inline.Transparency = transparency
-                drawing.bar_outline.Size = esp:floorvector(NEWVEC2(1, biggestY - smallestY))
-                drawing.bar_outline.Position = esp:floorvector(NEWVEC2(smallestX - 2, smallestY + 1))
+                drawing.bar_outline.Size = esp:floorvector(NEWVEC2(esp.healthbar_thickness, biggestY - smallestY))
+                drawing.bar_outline.Position = esp:floorvector(NEWVEC2(smallestX - esp.healthbar_thickness - 1, smallestY + 1))
                 drawing.bar_outline.Transparency = transparency
             end
 
